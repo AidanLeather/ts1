@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TabStash Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>TabStash Settings</h1>
+    </header>
+
+    <section class="section">
+      <h2>Auto-archive</h2>
+      <p class="desc">Automatically archive tabs older than a certain number of days. Archived tabs stay in your collections but are dimmed and won't appear as duplicates.</p>
+
+      <label class="toggle-row">
+        <span>Enable auto-archive</span>
+        <input type="checkbox" id="archive-enabled">
+        <span class="toggle"></span>
+      </label>
+
+      <label class="field-row" id="days-row">
+        <span>Archive tabs older than</span>
+        <div class="input-group">
+          <input type="number" id="archive-days" min="1" max="365" value="30">
+          <span class="unit">days</span>
+        </div>
+      </label>
+    </section>
+
+    <section class="section">
+      <h2>Data</h2>
+      <p class="desc">Export or clear your saved tabs.</p>
+      <div class="button-row">
+        <button id="export-btn" class="btn btn-secondary">Export as JSON</button>
+        <button id="clear-btn" class="btn btn-danger">Clear all data</button>
+      </div>
+    </section>
+
+    <div id="toast" class="toast hidden">Saved</div>
+  </div>
+
+  <script src="../lib/storage.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
