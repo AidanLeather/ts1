@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TabStash",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Save, organize, and search your tabs. A smarter alternative to OneTab.",
   "permissions": [
     "tabs",
@@ -25,8 +25,5 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  },
-  "chrome_url_overrides": {
-    "newtab": "page/tabstash.html"
   }
 }

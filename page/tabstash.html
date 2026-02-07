@@ -13,63 +13,55 @@
       <div class="sidebar-header">
         <h1 class="logo">TabStash</h1>
       </div>
+
       <nav class="sidebar-nav">
         <button class="nav-item active" data-view="all">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3" fill="none"/><path d="M2 6H14" stroke="currentColor" stroke-width="1.3"/></svg>
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M2 5.5H13" stroke="currentColor" stroke-width="1.2"/></svg>
           All Tabs
-          <span class="nav-count" id="nav-all-count">0</span>
-        </button>
-        <button class="nav-item" data-view="duplicates">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><rect x="5" y="1" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>
-          Duplicates
-          <span class="nav-count" id="nav-dup-count">0</span>
-        </button>
-        <button class="nav-item" data-view="archived">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="4" rx="1" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M2 6V13C2 13.6 2.4 14 3 14H13C13.6 14 14 13.6 14 13V6" stroke="currentColor" stroke-width="1.2"/><path d="M6 9H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-          Archived
-          <span class="nav-count" id="nav-archived-count">0</span>
+          <span class="nav-count" id="nav-all-count"></span>
         </button>
       </nav>
 
       <div class="sidebar-divider"></div>
-      <div class="sidebar-section-label">Collections</div>
+
       <div id="sidebar-collections" class="sidebar-collections"></div>
 
       <div class="sidebar-footer">
-        <button id="new-collection-btn" class="nav-item nav-item-subtle">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3V13M3 8H13" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+        <button id="new-collection-btn" class="nav-item nav-item-muted">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           New collection
         </button>
-        <button id="settings-btn" class="nav-item nav-item-subtle">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M8 1V3M8 13V15M1 8H3M13 8H15M3.05 3.05L4.46 4.46M11.54 11.54L12.95 12.95M12.95 3.05L11.54 4.46M4.46 11.54L3.05 12.95" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <button id="settings-btn" class="nav-item nav-item-muted">
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="2" stroke="currentColor" stroke-width="1.1" fill="none"/><path d="M7.5 1.5V3.5M7.5 11.5V13.5M1.5 7.5H3.5M11.5 7.5H13.5M3.3 3.3L4.7 4.7M10.3 10.3L11.7 11.7M11.7 3.3L10.3 4.7M4.7 10.3L3.3 11.7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
           Settings
         </button>
       </div>
     </aside>
 
-    <!-- Main content -->
+    <!-- Main -->
     <main class="main">
-      <!-- Search bar -->
       <header class="main-header">
         <div class="search-bar">
-          <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.4"/>
-            <line x1="11" y1="11" x2="15" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <svg class="search-icon" width="15" height="15" viewBox="0 0 15 15" fill="none">
+            <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="10" y1="10" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
           </svg>
-          <input type="text" id="search" placeholder="Search tabs… (press / to focus)" autocomplete="off" spellcheck="false">
-          <kbd class="search-hint">/</kbd>
+          <input type="text" id="search" placeholder="Search tabs..." autocomplete="off" spellcheck="false">
+          <kbd class="search-kbd">/</kbd>
         </div>
-        <div class="header-actions">
-          <button id="merge-all-btn" class="btn btn-ghost" title="Merge all duplicates">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 4L8 8L4 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 4L8 8L12 12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Merge duplicates
-          </button>
-          <button id="save-all-btn" class="btn btn-primary">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1V13M1 7H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            Save all tabs
-          </button>
-        </div>
+        <button id="save-all-btn" class="header-save-btn">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          Save all tabs
+        </button>
       </header>
+
+      <!-- Filter pill (shown contextually) -->
+      <div id="filter-bar" class="filter-bar hidden">
+        <span id="filter-pill" class="filter-pill">
+          <span id="filter-text"></span>
+          <button id="filter-clear" class="filter-clear">&times;</button>
+        </span>
+      </div>
 
       <!-- View title -->
       <div class="view-header">
@@ -77,28 +69,27 @@
         <span id="view-count" class="view-count"></span>
       </div>
 
-      <!-- Content area -->
+      <!-- Content -->
       <div id="content" class="content"></div>
 
       <!-- Empty state -->
       <div id="empty-state" class="empty-state hidden">
         <div class="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <rect x="6" y="10" width="36" height="28" rx="4" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M6 18H42" stroke="currentColor" stroke-width="2"/>
-            <circle cx="12" cy="14" r="1.5" fill="currentColor"/>
-            <circle cx="17" cy="14" r="1.5" fill="currentColor"/>
-            <circle cx="22" cy="14" r="1.5" fill="currentColor"/>
-            <path d="M18 30L22 26L26 30L30 24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+            <rect x="5" y="9" width="30" height="22" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
+            <path d="M5 15H35" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="10" cy="12" r="1" fill="currentColor"/>
+            <circle cx="14" cy="12" r="1" fill="currentColor"/>
+            <circle cx="18" cy="12" r="1" fill="currentColor"/>
           </svg>
         </div>
-        <p class="empty-title">Save your first tabs</p>
-        <p class="empty-sub">Click "Save all tabs" to stash everything open in this window,<br>or use the TabStash popup from the toolbar.</p>
+        <p class="empty-title" id="empty-title">Save your first tabs</p>
+        <p class="empty-sub" id="empty-sub">Click "Save all tabs" or use the toolbar popup.</p>
       </div>
     </main>
   </div>
 
-  <!-- Move-to-collection modal -->
+  <!-- Move modal -->
   <div id="move-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
     <div class="modal-dialog">
@@ -113,7 +104,7 @@
   <!-- Settings overlay -->
   <div id="settings-overlay" class="modal hidden">
     <div class="modal-backdrop"></div>
-    <div class="modal-dialog modal-dialog-wide">
+    <div class="modal-dialog modal-wide">
       <div class="modal-header">
         <h3>Settings</h3>
         <button class="modal-close" id="settings-close-btn">&times;</button>
@@ -123,7 +114,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">Archive tabs after</div>
-              <div class="setting-desc">Automatically archive tabs older than this. Archived tabs are dimmed and excluded from duplicate counts.</div>
+              <div class="setting-desc">Old tabs are dimmed and excluded from duplicate counts.</div>
             </div>
             <select id="setting-archive-days" class="setting-select">
               <option value="7">7 days</option>
@@ -135,44 +126,47 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">Close tabs after saving</div>
-              <div class="setting-desc">Automatically close browser tabs once they're stashed.</div>
             </div>
             <select id="setting-close-after" class="setting-select">
               <option value="ask">Ask each time</option>
-              <option value="always">Always close</option>
-              <option value="never">Never close</option>
+              <option value="always">Always</option>
+              <option value="never">Never</option>
             </select>
           </div>
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">Show duplicate warnings</div>
-              <div class="setting-desc">Highlight tabs that have been saved more than once.</div>
             </div>
             <label class="toggle">
               <input type="checkbox" id="setting-show-dupes" checked>
               <span class="toggle-track"></span>
             </label>
           </div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">Merge all duplicates</div>
+              <div class="setting-desc">Consolidate duplicate URLs into single entries.</div>
+            </div>
+            <button id="setting-merge-btn" class="setting-action-btn">Merge now</button>
+          </div>
         </div>
-
         <div class="setting-group">
           <div class="setting-row">
             <div class="setting-info">
-              <div class="setting-label">Export all data</div>
-              <div class="setting-desc">Download everything as a JSON file for backup.</div>
+              <div class="setting-label">Export data</div>
             </div>
-            <button id="setting-export-btn" class="btn btn-secondary">Export JSON</button>
+            <button id="setting-export-btn" class="setting-action-btn">Export JSON</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Command palette (Cmd+K) -->
+  <!-- Command palette -->
   <div id="command-palette" class="modal hidden">
     <div class="modal-backdrop"></div>
-    <div class="modal-dialog modal-dialog-narrow palette-dialog">
-      <input type="text" id="palette-input" class="palette-input" placeholder="Type a command…" autocomplete="off" spellcheck="false">
+    <div class="modal-dialog palette-dialog">
+      <input type="text" id="palette-input" class="palette-input" placeholder="Type a command..." autocomplete="off" spellcheck="false">
       <div id="palette-results" class="palette-results"></div>
     </div>
   </div>
