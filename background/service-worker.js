@@ -16,18 +16,22 @@
 
 importScripts('../lib/storage.js');
 
-// ── Alarm: auto-archive old tabs ───────────────────────
-
-// Register the alarm on install. chrome.alarms.create() is idempotent –
-// calling it again with the same name just updates the alarm.
-chrome.runtime.onInstalled.addListener(() => {
-  // Run the archiver once a day (periodInMinutes).
+// ── Install / update ───────────────────────────────────
+chrome.runtime.onInstalled.addListener(async (details) => {
+  // Set up daily auto-archive alarm (idempotent)
   chrome.alarms.create('auto-archive', { periodInMinutes: 1440 });
 
-  // Also run immediately on install/update to catch any backlog.
+  // Run immediately to catch any backlog
   archiveOldTabs();
+
+  // Rebuild URL index on install/update (ensures consistency)
+  await TabStashStorage.rebuildUrlIndex();
+
+  // Ensure an "Unsorted" collection exists
+  await TabStashStorage.ensureUnsorted();
 });
 
+// ── Alarm: auto-archive old tabs ───────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'auto-archive') {
     archiveOldTabs();
@@ -39,4 +43,39 @@ async function archiveOldTabs() {
   if (count > 0) {
     console.log(`[TabStash] Auto-archived ${count} tab(s).`);
   }
+}
+
+// ── Open full page and pin it ──────────────────────────
+
+/**
+ * Listen for messages from the popup requesting the full-page UI.
+ *
+ * We open the page as a new tab and pin it as the leftmost tab.
+ * chrome.tabs.move() reorders it to index 0, and chrome.tabs.update()
+ * pins it. This keeps the management page easily accessible.
+ */
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.action === 'openFullPage') {
+    openTabStashPage();
+    sendResponse({ ok: true });
+  }
+});
+
+async function openTabStashPage() {
+  const pageUrl = chrome.runtime.getURL('page/tabstash.html');
+
+  // Check if the page is already open in any window
+  const existing = await chrome.tabs.query({ url: pageUrl });
+  if (existing.length > 0) {
+    // Focus the existing tab
+    const tab = existing[0];
+    await chrome.tabs.update(tab.id, { active: true });
+    await chrome.windows.update(tab.windowId, { focused: true });
+    return;
+  }
+
+  // Create new tab, pin it, move to position 0
+  const tab = await chrome.tabs.create({ url: pageUrl, active: true });
+  await chrome.tabs.update(tab.id, { pinned: true });
+  await chrome.tabs.move(tab.id, { index: 0 });
 }

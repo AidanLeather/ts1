@@ -70,8 +70,13 @@ function bindEvents() {
 
   // Settings
   $('#settings-btn').addEventListener('click', () => {
-    // chrome.runtime.openOptionsPage() opens settings/settings.html
     chrome.runtime.openOptionsPage();
+  });
+
+  // Open full page
+  $('#open-full-btn').addEventListener('click', () => {
+    chrome.runtime.sendMessage({ action: 'openFullPage' });
+    window.close();
   });
 
   // Move modal cancel
