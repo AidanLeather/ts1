@@ -29,6 +29,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // Ensure an "Unsorted" collection exists
   await TabStashStorage.ensureUnsorted();
+
+  // On first install, create suggested pinned collections
+  if (details.reason === 'install') {
+    await createSuggestedTemplates();
+  }
 });
 
 // ── Alarm: auto-archive old tabs ───────────────────────
@@ -45,18 +50,40 @@ async function archiveOldTabs() {
   }
 }
 
-// ── Open full page and pin it ──────────────────────────
+// ── Suggested pinned templates ─────────────────────────
 
-/**
- * Listen for messages from the popup requesting the full-page UI.
- *
- * We open the page as a new tab and pin it as the leftmost tab.
- * chrome.tabs.move() reorders it to index 0, and chrome.tabs.update()
- * pins it. This keeps the management page easily accessible.
- */
+async function createSuggestedTemplates() {
+  const collections = await TabStashStorage.getCollections();
+  // Only create templates if user has no real collections yet
+  // (just the Unsorted one from ensureUnsorted)
+  const realCollections = collections.filter((c) => c.name !== 'Unsorted');
+  if (realCollections.length > 0) return;
+
+  const templates = [
+    { name: 'Morning routine', isPinned: true },
+    { name: 'Deep work', isPinned: true },
+    { name: 'Research stack', isPinned: true },
+  ];
+
+  for (const tmpl of templates) {
+    await TabStashStorage.addCollection(tmpl.name, [], { isPinned: true });
+  }
+  console.log('[TabStash] Created suggested pinned collections.');
+}
+
+// ── Message handling ───────────────────────────────────
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'openFullPage') {
     openTabStashPage();
+    sendResponse({ ok: true });
+  }
+
+  if (msg.action === 'closeTabs') {
+    const ids = (msg.tabIds || []).filter(Boolean);
+    if (ids.length > 0) {
+      chrome.tabs.remove(ids);
+    }
     sendResponse({ ok: true });
   }
 });

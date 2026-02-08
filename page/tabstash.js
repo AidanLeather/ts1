@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadData() {
   const data = await TabStashStorage.getAll();
-  state.collections = data.collections;
+  state.collections = TabStashStorage.sortCollections(data.collections);
   state.urlIndex = data.urlIndex;
   state.settings = data.settings;
 }
@@ -95,6 +95,18 @@ function bindEvents() {
     $('#search').value = '';
     render();
   });
+
+  // Notes auto-save
+  let notesTimeout = null;
+  $('#notes-input').addEventListener('input', (e) => {
+    clearTimeout(notesTimeout);
+    notesTimeout = setTimeout(async () => {
+      if (state.currentView !== 'all') {
+        await TabStashStorage.updateNotes(state.currentView, e.target.value);
+        await loadData();
+      }
+    }, 500);
+  });
 }
 
 // ── Keyboard ───────────────────────────────────────────
@@ -144,12 +156,9 @@ async function saveAllTabs() {
   render();
   showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
 
-  if (state.settings.closeAfterSave === 'always') {
+  // Close tabs based on setting
+  if (state.settings.closeTabsOnSave) {
     closeSavedTabs(saveable);
-  } else if (state.settings.closeAfterSave === 'ask') {
-    if (confirm(`Close ${saveable.length} saved tabs?`)) {
-      closeSavedTabs(saveable);
-    }
   }
 }
 
@@ -162,6 +171,7 @@ function closeSavedTabs(tabs) {
 function render() {
   updateSidebar();
   updateViewHeader();
+  updateNotesArea();
 
   const content = $('#content');
   const empty = $('#empty-state');
@@ -238,6 +248,29 @@ function renderSearchResults(content, results) {
   }
 }
 
+// ── Notes area ────────────────────────────────────────
+function updateNotesArea() {
+  const notesArea = $('#notes-area');
+  const notesInput = $('#notes-input');
+
+  if (state.currentView === 'all') {
+    notesArea.classList.add('hidden');
+    return;
+  }
+
+  const col = state.collections.find((c) => c.id === state.currentView);
+  if (!col) {
+    notesArea.classList.add('hidden');
+    return;
+  }
+
+  notesArea.classList.remove('hidden');
+  // Only update value if textarea is not focused (avoid overwriting while typing)
+  if (document.activeElement !== notesInput) {
+    notesInput.value = col.notes || '';
+  }
+}
+
 // ── Collection block ───────────────────────────────────
 function buildCollectionBlock(col, readOnly) {
   const div = document.createElement('div');
@@ -247,7 +280,13 @@ function buildCollectionBlock(col, readOnly) {
   const activeTabs = col.tabs.filter((t) => !t.archived);
   const archivedTabs = col.tabs.filter((t) => t.archived);
 
+  const realCol = state.collections.find((c) => c.id === col.id);
+  const isPinned = realCol?.isPinned || false;
+
   const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  // Bookmark/ribbon icon for pin
+  const pinIcon = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="${isPinned ? 'currentColor' : 'none'}" stroke-linejoin="round"/></svg>`;
 
   const header = document.createElement('div');
   header.className = 'collection-header';
@@ -257,6 +296,9 @@ function buildCollectionBlock(col, readOnly) {
     <span class="collection-tab-count">${activeTabs.length}${archivedTabs.length ? ` + ${archivedTabs.length} archived` : ''}</span>
     ${readOnly ? '' : `
     <div class="col-actions">
+      <button class="icon-btn pin-btn${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Unpin' : 'Pin'} collection">
+        ${pinIcon}
+      </button>
       <button class="icon-btn restore-all-btn" title="Restore all">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -278,9 +320,17 @@ function buildCollectionBlock(col, readOnly) {
   });
 
   if (!readOnly) {
+    header.querySelector('.pin-btn')?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await TabStashStorage.togglePin(col.id);
+      await loadData();
+      render();
+    });
+
     header.querySelector('.restore-all-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       for (const t of activeTabs) chrome.tabs.create({ url: t.url, active: false });
+      TabStashStorage.logAction('open', { collectionId: col.id, tabCount: activeTabs.length });
       showToast(`Opened ${activeTabs.length} tab${activeTabs.length !== 1 ? 's' : ''}`);
     });
 
@@ -324,23 +374,31 @@ function buildTabRow(tab, collectionId) {
   const row = document.createElement('div');
   row.className = `tab-row${tab.archived ? ' archived' : ''}`;
 
-  const count = state.urlIndex[tab.url] || 0;
-  const showDups = state.settings.showDuplicateWarnings !== false;
-  const dupBadge = showDups && count > 1 ? `<span class="dup-badge">Saved ${count}\u00d7</span>` : '';
+  const tags = tab.tags || [];
 
   const icon = faviconUrl(tab.url);
   const favicon = icon
     ? `<img class="tab-favicon" src="${escAttr(icon)}" alt="" loading="lazy">`
     : '<div class="tab-favicon-placeholder"></div>';
 
+  // Build tag pills HTML
+  const tagHtml = tags.map((t) =>
+    `<span class="tag-chip" data-tag="${escAttr(t)}">${escHtml(t)}<button class="tag-remove" title="Remove tag">\u00d7</button></span>`
+  ).join('');
+
   row.innerHTML = `
     ${favicon}
     <div class="tab-info">
-      <div class="tab-title" title="${escAttr(tab.url)}">${escHtml(tab.title)}</div>
+      <div class="tab-title-row">
+        <span class="tab-title" title="${escAttr(tab.url)}">${escHtml(tab.title)}</span>
+        <div class="tag-container">
+          ${tagHtml}
+          <button class="tag-add-btn" title="Add tag">+</button>
+        </div>
+      </div>
       <div class="tab-url">${escHtml(shortUrl(tab.url))}</div>
     </div>
     <div class="tab-meta">
-      ${dupBadge}
       <span class="tab-date">${relativeDate(tab.savedAt)}</span>
     </div>
     <div class="tab-actions">
@@ -356,17 +414,65 @@ function buildTabRow(tab, collectionId) {
     </div>
   `;
 
-  row.querySelector('.tab-title').addEventListener('click', () => chrome.tabs.create({ url: tab.url }));
-  row.querySelector('.open-btn').addEventListener('click', () => chrome.tabs.create({ url: tab.url }));
+  // Open tab
+  row.querySelector('.tab-title').addEventListener('click', () => {
+    chrome.tabs.create({ url: tab.url });
+    TabStashStorage.logAction('open', { tabId: tab.id });
+  });
+  row.querySelector('.open-btn').addEventListener('click', () => {
+    chrome.tabs.create({ url: tab.url });
+    TabStashStorage.logAction('open', { tabId: tab.id });
+  });
 
+  // Delete tab
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
     await TabStashStorage.removeTab(tab.id);
     await loadData();
     render();
   });
 
+  // Move tab
   row.querySelector('.move-tab-btn').addEventListener('click', () => {
     openMoveModal(tab.id, collectionId);
+  });
+
+  // Tag: remove
+  row.querySelectorAll('.tag-remove').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const tagName = btn.closest('.tag-chip').dataset.tag;
+      await TabStashStorage.removeTag(tab.id, tagName);
+      await loadData();
+      render();
+    });
+  });
+
+  // Tag: add
+  row.querySelector('.tag-add-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const btn = e.currentTarget;
+    // Replace button with inline input
+    const input = document.createElement('input');
+    input.className = 'tag-inline-input';
+    input.placeholder = 'tag';
+    input.maxLength = 20;
+    btn.replaceWith(input);
+    input.focus();
+
+    const finish = async () => {
+      const val = input.value.trim();
+      if (val) {
+        await TabStashStorage.addTag(tab.id, val);
+        await loadData();
+      }
+      render();
+    };
+
+    input.addEventListener('blur', finish);
+    input.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') input.blur();
+      if (ev.key === 'Escape') { input.value = ''; input.blur(); }
+    });
   });
 
   return row;
@@ -390,40 +496,56 @@ function updateSidebar() {
   const list = $('#sidebar-collections');
   list.innerHTML = '';
 
-  for (const col of state.collections) {
-    const active = col.tabs.filter((t) => !t.archived).length;
-    const btn = document.createElement('button');
-    btn.className = `sidebar-col-item${state.currentView === col.id ? ' active' : ''}`;
-    btn.innerHTML = `
-      <span class="sidebar-col-name">${escHtml(col.name)}</span>
-      <span class="sidebar-col-count">${active}</span>
-      <div class="sidebar-col-actions">
-        <button class="icon-btn danger sidebar-del" title="Delete">
-          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M2.5 2.5L8.5 8.5M8.5 2.5L2.5 8.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
-        </button>
-      </div>
-    `;
+  // Pinned section
+  const pinned = state.collections.filter((c) => c.isPinned);
+  const unpinned = state.collections.filter((c) => !c.isPinned);
 
-    btn.addEventListener('click', (e) => {
-      if (e.target.closest('.sidebar-col-actions')) return;
-      state.currentView = col.id;
-      state.searchQuery = '';
-      $('#search').value = '';
-      render();
-    });
-
-    btn.querySelector('.sidebar-del').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (confirm(`Delete "${col.name}"?`)) {
-        await TabStashStorage.removeCollection(col.id);
-        if (state.currentView === col.id) state.currentView = 'all';
-        await loadData();
-        render();
-      }
-    });
-
-    list.appendChild(btn);
+  if (pinned.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'sidebar-section-label';
+    label.textContent = 'Pinned';
+    list.appendChild(label);
+    for (const col of pinned) {
+      list.appendChild(buildSidebarItem(col));
+    }
   }
+
+  if (unpinned.length > 0) {
+    if (pinned.length > 0) {
+      const label = document.createElement('div');
+      label.className = 'sidebar-section-label';
+      label.textContent = 'Collections';
+      list.appendChild(label);
+    }
+    for (const col of unpinned) {
+      list.appendChild(buildSidebarItem(col));
+    }
+  }
+}
+
+function buildSidebarItem(col) {
+  const active = col.tabs.filter((t) => !t.archived).length;
+  const btn = document.createElement('button');
+  btn.className = `sidebar-col-item${state.currentView === col.id ? ' active' : ''}`;
+
+  const pinSvg = col.isPinned
+    ? '<svg class="sidebar-pin-icon" width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
+    : '';
+
+  btn.innerHTML = `
+    ${pinSvg}
+    <span class="sidebar-col-name">${escHtml(col.name)}</span>
+    <span class="sidebar-col-count">${active}</span>
+  `;
+
+  btn.addEventListener('click', () => {
+    state.currentView = col.id;
+    state.searchQuery = '';
+    $('#search').value = '';
+    render();
+  });
+
+  return btn;
 }
 
 function updateViewHeader() {
@@ -515,22 +637,23 @@ function closeMoveModal() {
 function openSettings() {
   const s = state.settings;
 
+  $('#setting-close-tabs').checked = s.closeTabsOnSave !== false;
+
   const archiveEl = $('#setting-archive-days');
   archiveEl.value = !s.archiveEnabled ? '0' : String([7,30,90].reduce((a,b) => Math.abs(b-s.archiveDays) < Math.abs(a-s.archiveDays) ? b : a));
 
-  $('#setting-close-after').value = s.closeAfterSave || 'ask';
   $('#setting-show-dupes').checked = s.showDuplicateWarnings !== false;
 
   // Clone-and-replace to avoid duplicate listeners
-  replaceWithClone('#setting-archive-days', async (el) => {
-    const v = parseInt(el.value, 10);
-    await TabStashStorage.saveSettings({ ...state.settings, archiveEnabled: v > 0, archiveDays: v > 0 ? v : state.settings.archiveDays });
+  replaceWithClone('#setting-close-tabs', async (el) => {
+    await TabStashStorage.saveSettings({ ...state.settings, closeTabsOnSave: el.checked });
     state.settings = await TabStashStorage.getSettings();
     showToast('Saved');
   }, 'change');
 
-  replaceWithClone('#setting-close-after', async (el) => {
-    await TabStashStorage.saveSettings({ ...state.settings, closeAfterSave: el.value });
+  replaceWithClone('#setting-archive-days', async (el) => {
+    const v = parseInt(el.value, 10);
+    await TabStashStorage.saveSettings({ ...state.settings, archiveEnabled: v > 0, archiveDays: v > 0 ? v : state.settings.archiveDays });
     state.settings = await TabStashStorage.getSettings();
     showToast('Saved');
   }, 'change');

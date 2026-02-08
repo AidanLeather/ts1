@@ -1,7 +1,7 @@
 /**
  * TabStash – Popup (quick launcher)
  *
- * Minimal: save all tabs, or open the full management page.
+ * Minimal: save all tabs (and close them), or open the full management page.
  */
 
 const $ = (sel) => document.querySelector(sel);
@@ -28,6 +28,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     await TabStashStorage.addCollection(name, saveable);
     showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
+
+    // Close saved tabs (setting defaults to true)
+    const settings = await TabStashStorage.getSettings();
+    if (settings.closeTabsOnSave) {
+      const tabIds = saveable.map((t) => t.id).filter(Boolean);
+      if (tabIds.length > 0) {
+        chrome.runtime.sendMessage({ action: 'closeTabs', tabIds });
+      }
+    }
+
     btn.disabled = false;
   });
 
