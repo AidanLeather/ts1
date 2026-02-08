@@ -109,6 +109,26 @@ body {
   color: var(--text-tertiary);
 }
 
+/* ── Sidebar save link ──────────────────────────────── */
+.sidebar-save-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 20px;
+  margin-top: 4px;
+  width: 100%;
+  border: none;
+  background: none;
+  font: 400 12px var(--font);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  text-align: left;
+  transition: color var(--transition);
+}
+.sidebar-save-link:hover {
+  color: var(--text);
+}
+
 .sidebar-divider {
   height: 1px;
   background: var(--border);
@@ -159,6 +179,7 @@ body {
   text-align: left;
   transition: color var(--transition);
   overflow: hidden;
+  position: relative;
 }
 .sidebar-col-item:hover {
   color: var(--text);
@@ -180,10 +201,33 @@ body {
   flex: 1;
 }
 
-.sidebar-col-count {
-  font-size: 11px;
+/* ── Sidebar hover-pin ──────────────────────────────── */
+.sidebar-hover-pin {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: none;
   color: var(--text-tertiary);
+  border-radius: 4px;
+  cursor: pointer;
   flex-shrink: 0;
+  transition: color var(--transition), background var(--transition);
+}
+.sidebar-col-item:hover .sidebar-hover-pin {
+  display: flex;
+}
+.sidebar-hover-pin:hover {
+  color: var(--text);
+  background: var(--bg-active);
+}
+.sidebar-hover-pin-active {
+  color: var(--accent);
+}
+.sidebar-hover-pin-active:hover {
+  color: var(--text-secondary);
 }
 
 .sidebar-footer {
@@ -272,25 +316,6 @@ body {
   transition: opacity var(--transition);
 }
 
-.header-save-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: var(--radius-sm);
-  font: 500 13px var(--font);
-  background: var(--accent);
-  color: #fff;
-  cursor: pointer;
-  transition: background var(--transition);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.header-save-btn:hover {
-  background: var(--accent-hover);
-}
-
 /* ── Filter bar ──────────────────────────────────────── */
 .filter-bar {
   padding: 12px 32px 0;
@@ -340,35 +365,6 @@ body {
 .view-count {
   font-size: 13px;
   color: var(--text-tertiary);
-}
-
-/* ── Notes area ─────────────────────────────────────── */
-.notes-area {
-  padding: 0 32px 8px;
-  flex-shrink: 0;
-}
-
-.notes-input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font: 13px var(--font);
-  color: var(--text-secondary);
-  background: var(--bg-sidebar);
-  outline: none;
-  resize: vertical;
-  min-height: 40px;
-  max-height: 150px;
-  line-height: 1.5;
-  transition: border-color var(--transition), background var(--transition);
-}
-.notes-input::placeholder {
-  color: var(--text-tertiary);
-}
-.notes-input:focus {
-  border-color: var(--accent);
-  background: var(--bg);
 }
 
 /* ── Content ─────────────────────────────────────────── */
@@ -424,7 +420,6 @@ body {
 .collection-name {
   font-weight: 600;
   font-size: 14px;
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -436,6 +431,7 @@ body {
   font-size: 12px;
   color: var(--text-tertiary);
   flex-shrink: 0;
+  margin-right: auto;
 }
 
 .col-actions {
@@ -621,11 +617,6 @@ body {
 }
 .tab-row:hover .tab-actions {
   opacity: 1;
-}
-
-/* ── Pin button ──────────────────────────────────────── */
-.pin-btn.pinned {
-  color: var(--accent);
 }
 
 /* ── Icon button ─────────────────────────────────────── */

@@ -63,8 +63,8 @@ function bindEvents() {
     render();
   });
 
-  // Save all tabs
-  $('#save-all-btn').addEventListener('click', saveAllTabs);
+  // Save open tabs (sidebar link)
+  $('#save-tabs-btn').addEventListener('click', saveAllTabs);
 
   // New collection
   $('#new-collection-btn').addEventListener('click', async () => {
@@ -94,18 +94,6 @@ function bindEvents() {
     state.searchQuery = '';
     $('#search').value = '';
     render();
-  });
-
-  // Notes auto-save
-  let notesTimeout = null;
-  $('#notes-input').addEventListener('input', (e) => {
-    clearTimeout(notesTimeout);
-    notesTimeout = setTimeout(async () => {
-      if (state.currentView !== 'all') {
-        await TabStashStorage.updateNotes(state.currentView, e.target.value);
-        await loadData();
-      }
-    }, 500);
   });
 }
 
@@ -171,7 +159,6 @@ function closeSavedTabs(tabs) {
 function render() {
   updateSidebar();
   updateViewHeader();
-  updateNotesArea();
 
   const content = $('#content');
   const empty = $('#empty-state');
@@ -199,7 +186,7 @@ function render() {
 
   filterBar.classList.add('hidden');
   $('#empty-title').textContent = 'Save your first tabs';
-  $('#empty-sub').textContent = 'Click "Save all tabs" or use the toolbar popup.';
+  $('#empty-sub').textContent = 'Click "Save open tabs" in the sidebar or use the toolbar popup.';
 
   if (state.currentView === 'all') {
     renderAllView(content, empty);
@@ -248,29 +235,6 @@ function renderSearchResults(content, results) {
   }
 }
 
-// ── Notes area ────────────────────────────────────────
-function updateNotesArea() {
-  const notesArea = $('#notes-area');
-  const notesInput = $('#notes-input');
-
-  if (state.currentView === 'all') {
-    notesArea.classList.add('hidden');
-    return;
-  }
-
-  const col = state.collections.find((c) => c.id === state.currentView);
-  if (!col) {
-    notesArea.classList.add('hidden');
-    return;
-  }
-
-  notesArea.classList.remove('hidden');
-  // Only update value if textarea is not focused (avoid overwriting while typing)
-  if (document.activeElement !== notesInput) {
-    notesInput.value = col.notes || '';
-  }
-}
-
 // ── Collection block ───────────────────────────────────
 function buildCollectionBlock(col, readOnly) {
   const div = document.createElement('div');
@@ -279,26 +243,21 @@ function buildCollectionBlock(col, readOnly) {
 
   const activeTabs = col.tabs.filter((t) => !t.archived);
   const archivedTabs = col.tabs.filter((t) => t.archived);
-
-  const realCol = state.collections.find((c) => c.id === col.id);
-  const isPinned = realCol?.isPinned || false;
+  const totalActive = activeTabs.length;
 
   const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-  // Bookmark/ribbon icon for pin
-  const pinIcon = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="${isPinned ? 'currentColor' : 'none'}" stroke-linejoin="round"/></svg>`;
+  // Tab count inline with name
+  const countText = totalActive === 1 ? '1 tab' : `${totalActive} tabs`;
 
   const header = document.createElement('div');
   header.className = 'collection-header';
   header.innerHTML = `
     <span class="collapse-icon">${arrow}</span>
     <span class="collection-name">${escHtml(col.name)}</span>
-    <span class="collection-tab-count">${activeTabs.length}${archivedTabs.length ? ` + ${archivedTabs.length} archived` : ''}</span>
+    <span class="collection-tab-count">(${countText})</span>
     ${readOnly ? '' : `
     <div class="col-actions">
-      <button class="icon-btn pin-btn${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Unpin' : 'Pin'} collection">
-        ${pinIcon}
-      </button>
       <button class="icon-btn restore-all-btn" title="Restore all">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -320,13 +279,6 @@ function buildCollectionBlock(col, readOnly) {
   });
 
   if (!readOnly) {
-    header.querySelector('.pin-btn')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      await TabStashStorage.togglePin(col.id);
-      await loadData();
-      render();
-    });
-
     header.querySelector('.restore-all-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
       for (const t of activeTabs) chrome.tabs.create({ url: t.url, active: false });
@@ -405,8 +357,8 @@ function buildTabRow(tab, collectionId) {
       <button class="icon-btn open-btn" title="Open">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <button class="icon-btn move-tab-btn" title="Move">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1.5" y="3" width="10" height="7.5" rx="1.5" stroke="currentColor" stroke-width="1" fill="none"/><path d="M1.5 5.5H11.5" stroke="currentColor" stroke-width="1"/></svg>
+      <button class="icon-btn move-tab-btn" title="Move to collection">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.1" fill="none"/><path d="M6.5 4V9M4 6.5H9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
       </button>
       <button class="icon-btn danger del-tab-btn" title="Delete">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -451,7 +403,6 @@ function buildTabRow(tab, collectionId) {
   row.querySelector('.tag-add-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     const btn = e.currentTarget;
-    // Replace button with inline input
     const input = document.createElement('input');
     input.className = 'tag-inline-input';
     input.placeholder = 'tag';
@@ -480,14 +431,9 @@ function buildTabRow(tab, collectionId) {
 
 // ── Sidebar ────────────────────────────────────────────
 function updateSidebar() {
-  let allCount = 0;
-  for (const col of state.collections) {
-    for (const t of col.tabs) {
-      if (!t.archived) allCount++;
-    }
-  }
+  // No count on "All Tabs" nav item
   const countEl = $('#nav-all-count');
-  countEl.textContent = allCount || '';
+  countEl.textContent = '';
 
   $$('.nav-item[data-view]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.view === state.currentView);
@@ -524,7 +470,6 @@ function updateSidebar() {
 }
 
 function buildSidebarItem(col) {
-  const active = col.tabs.filter((t) => !t.archived).length;
   const btn = document.createElement('button');
   btn.className = `sidebar-col-item${state.currentView === col.id ? ' active' : ''}`;
 
@@ -532,16 +477,30 @@ function buildSidebarItem(col) {
     ? '<svg class="sidebar-pin-icon" width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
     : '';
 
+  // Hover-pin ribbon (shown on hover for unpinned items)
+  const hoverPin = !col.isPinned
+    ? '<button class="sidebar-hover-pin" title="Pin collection"><svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg></button>'
+    : '<button class="sidebar-hover-pin sidebar-hover-pin-active" title="Unpin collection"><svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg></button>';
+
   btn.innerHTML = `
     ${pinSvg}
     <span class="sidebar-col-name">${escHtml(col.name)}</span>
-    <span class="sidebar-col-count">${active}</span>
+    ${hoverPin}
   `;
 
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', (e) => {
+    if (e.target.closest('.sidebar-hover-pin')) return;
     state.currentView = col.id;
     state.searchQuery = '';
     $('#search').value = '';
+    render();
+  });
+
+  // Pin toggle on hover-pin click
+  btn.querySelector('.sidebar-hover-pin')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await TabStashStorage.togglePin(col.id);
+    await loadData();
     render();
   });
 
@@ -642,8 +601,6 @@ function openSettings() {
   const archiveEl = $('#setting-archive-days');
   archiveEl.value = !s.archiveEnabled ? '0' : String([7,30,90].reduce((a,b) => Math.abs(b-s.archiveDays) < Math.abs(a-s.archiveDays) ? b : a));
 
-  $('#setting-show-dupes').checked = s.showDuplicateWarnings !== false;
-
   // Clone-and-replace to avoid duplicate listeners
   replaceWithClone('#setting-close-tabs', async (el) => {
     await TabStashStorage.saveSettings({ ...state.settings, closeTabsOnSave: el.checked });
@@ -657,20 +614,6 @@ function openSettings() {
     state.settings = await TabStashStorage.getSettings();
     showToast('Saved');
   }, 'change');
-
-  replaceWithClone('#setting-show-dupes', async (el) => {
-    await TabStashStorage.saveSettings({ ...state.settings, showDuplicateWarnings: el.checked });
-    state.settings = await TabStashStorage.getSettings();
-    render();
-    showToast('Saved');
-  }, 'change');
-
-  replaceWithClone('#setting-merge-btn', async () => {
-    const n = await TabStashStorage.mergeAllDuplicates();
-    await loadData();
-    render();
-    showToast(n > 0 ? `Merged ${n} duplicate${n !== 1 ? 's' : ''}` : 'No duplicates');
-  }, 'click');
 
   replaceWithClone('#setting-export-btn', async () => {
     const data = await TabStashStorage.getAll();
@@ -700,7 +643,7 @@ function replaceWithClone(sel, handler, event) {
 
 // ── Command palette ────────────────────────────────────
 const COMMANDS = [
-  { label: 'Save all tabs', action: () => saveAllTabs() },
+  { label: 'Save open tabs', action: () => saveAllTabs() },
   { label: 'View all tabs', action: () => { state.currentView = 'all'; render(); }},
   { label: 'New collection', action: async () => {
     const name = prompt('Collection name:');

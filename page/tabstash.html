@@ -18,9 +18,14 @@
         <button class="nav-item active" data-view="all">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M2 5.5H13" stroke="currentColor" stroke-width="1.2"/></svg>
           All Tabs
-          <span class="nav-count" id="nav-all-count"></span>
         </button>
       </nav>
+
+      <!-- Save open tabs link -->
+      <button id="save-tabs-btn" class="sidebar-save-link">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        Save open tabs
+      </button>
 
       <div class="sidebar-divider"></div>
 
@@ -49,10 +54,6 @@
           <input type="text" id="search" placeholder="Search tabs..." autocomplete="off" spellcheck="false">
           <kbd class="search-kbd">/</kbd>
         </div>
-        <button id="save-all-btn" class="header-save-btn">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 2V12M2 7H12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          Save all tabs
-        </button>
       </header>
 
       <!-- Filter pill (shown contextually) -->
@@ -67,11 +68,6 @@
       <div class="view-header">
         <h2 id="view-title" class="view-title">All Tabs</h2>
         <span id="view-count" class="view-count"></span>
-      </div>
-
-      <!-- Notes area (shown when a collection with notes is selected) -->
-      <div id="notes-area" class="notes-area hidden">
-        <textarea id="notes-input" class="notes-input" placeholder="Add notes to this collection..." rows="3"></textarea>
       </div>
 
       <!-- Content -->
@@ -89,7 +85,7 @@
           </svg>
         </div>
         <p class="empty-title" id="empty-title">Save your first tabs</p>
-        <p class="empty-sub" id="empty-sub">Click "Save all tabs" or use the toolbar popup.</p>
+        <p class="empty-sub" id="empty-sub">Click "Save open tabs" in the sidebar or use the toolbar popup.</p>
       </div>
     </main>
   </div>
@@ -129,7 +125,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">Archive tabs after</div>
-              <div class="setting-desc">Old tabs are dimmed and excluded from duplicate counts.</div>
+              <div class="setting-desc">Old tabs are dimmed and moved to the bottom.</div>
             </div>
             <select id="setting-archive-days" class="setting-select">
               <option value="7">7 days</option>
@@ -137,22 +133,6 @@
               <option value="90">90 days</option>
               <option value="0">Never</option>
             </select>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-label">Show duplicate warnings</div>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="setting-show-dupes" checked>
-              <span class="toggle-track"></span>
-            </label>
-          </div>
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-label">Merge all duplicates</div>
-              <div class="setting-desc">Consolidate duplicate URLs into single entries.</div>
-            </div>
-            <button id="setting-merge-btn" class="setting-action-btn">Merge now</button>
           </div>
         </div>
         <div class="setting-group">
