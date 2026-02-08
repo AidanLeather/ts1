@@ -18,6 +18,7 @@
         <button class="nav-item active" data-view="all">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><rect x="2" y="2" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M2 5.5H13" stroke="currentColor" stroke-width="1.2"/></svg>
           All Tabs
+          <span id="nav-all-count" class="nav-count"></span>
         </button>
       </nav>
 
@@ -112,16 +113,6 @@
       </div>
       <div class="modal-body settings-body">
         <div class="setting-group">
-          <div class="setting-row">
-            <div class="setting-info">
-              <div class="setting-label">Close tabs after saving</div>
-              <div class="setting-desc">Automatically close browser tabs when saved to TabStash.</div>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="setting-close-tabs" checked>
-              <span class="toggle-track"></span>
-            </label>
-          </div>
           <div class="setting-row">
             <div class="setting-info">
               <div class="setting-label">Archive tabs after</div>

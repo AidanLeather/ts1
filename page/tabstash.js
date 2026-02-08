@@ -3,6 +3,7 @@
  *
  * Architecture:
  *   - State from chrome.storage.local via lib/storage.js
+ *   - Real-time updates via chrome.storage.onChanged listener
  *   - Views: "all" or a specific collection id
  *   - Keyboard: / = search, Esc = clear/close, Cmd+K = command palette
  *   - Favicons via Google's service for reliability
@@ -26,13 +27,31 @@ document.addEventListener('DOMContentLoaded', async () => {
   render();
   bindEvents();
   bindKeyboard();
+  bindStorageListener();
+  console.log('[TabStash] Page loaded, listening for storage changes');
 });
 
 async function loadData() {
-  const data = await TabStashStorage.getAll();
-  state.collections = TabStashStorage.sortCollections(data.collections);
-  state.urlIndex = data.urlIndex;
-  state.settings = data.settings;
+  try {
+    const data = await TabStashStorage.getAll();
+    state.collections = TabStashStorage.sortCollections(data.collections);
+    state.urlIndex = data.urlIndex;
+    state.settings = data.settings;
+    console.log(`[TabStash] Loaded ${state.collections.length} collections`);
+  } catch (err) {
+    console.error('[TabStash] loadData error:', err);
+  }
+}
+
+// ── Real-time storage listener ─────────────────────────
+function bindStorageListener() {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    if (changes.collections || changes.urlIndex || changes.settings) {
+      console.log('[TabStash] Storage changed, refreshing...');
+      loadData().then(() => render());
+    }
+  });
 }
 
 // ── Favicon ────────────────────────────────────────────
@@ -70,10 +89,14 @@ function bindEvents() {
   $('#new-collection-btn').addEventListener('click', async () => {
     const name = prompt('Collection name:');
     if (name && name.trim()) {
-      const col = await TabStashStorage.addCollection(name.trim(), []);
-      await loadData();
-      state.currentView = col.id;
-      render();
+      try {
+        const col = await TabStashStorage.addCollection(name.trim(), []);
+        await loadData();
+        state.currentView = col.id;
+        render();
+      } catch (err) {
+        console.error('[TabStash] New collection error:', err);
+      }
     }
   });
 
@@ -132,27 +155,26 @@ function bindKeyboard() {
 
 // ── Save all tabs ──────────────────────────────────────
 async function saveAllTabs() {
-  const tabs = await chrome.tabs.query({ currentWindow: true });
-  const saveable = tabs.filter(
-    (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')
-  );
-  if (saveable.length === 0) return;
+  try {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const saveable = tabs.filter(
+      (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')
+    );
+    if (saveable.length === 0) {
+      showToast('No saveable tabs');
+      return;
+    }
 
-  const name = formatCollectionName();
-  await TabStashStorage.addCollection(name, saveable);
-  await loadData();
-  render();
-  showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
-
-  // Close tabs based on setting
-  if (state.settings.closeTabsOnSave) {
-    closeSavedTabs(saveable);
+    const name = formatCollectionName();
+    const col = await TabStashStorage.addCollection(name, saveable);
+    console.log(`[TabStash] Saved ${saveable.length} tabs as "${name}"`);
+    await loadData();
+    render();
+    showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
+  } catch (err) {
+    console.error('[TabStash] saveAllTabs error:', err);
+    showToast('Error saving tabs');
   }
-}
-
-function closeSavedTabs(tabs) {
-  const ids = tabs.map((t) => t.id).filter(Boolean);
-  if (ids.length > 0) chrome.tabs.remove(ids);
 }
 
 // ── Render ─────────────────────────────────────────────
@@ -204,22 +226,36 @@ function renderAllView(content, empty) {
   empty.classList.add('hidden');
   content.innerHTML = '';
   for (const col of state.collections) {
-    content.appendChild(buildCollectionBlock(col, false));
+    content.appendChild(buildCollectionBlock(col, false, true));
   }
 }
 
 function renderCollectionView(content, empty, colId) {
   const col = state.collections.find((c) => c.id === colId);
-  if (!col || col.tabs.length === 0) {
+  if (!col) {
     content.innerHTML = '';
-    $('#empty-title').textContent = col ? 'Empty collection' : 'Collection not found';
-    $('#empty-sub').textContent = col ? 'Move tabs here or save new ones.' : '';
+    $('#empty-title').textContent = 'Collection not found';
+    $('#empty-sub').textContent = '';
     empty.classList.remove('hidden');
     return;
   }
+
+  if (col.tabs.length === 0) {
+    content.innerHTML = '';
+    // Still show the add-tab form even when empty
+    const wrapper = document.createElement('div');
+    wrapper.appendChild(buildAddTabForm(col.id));
+    content.appendChild(wrapper);
+    $('#empty-title').textContent = 'Empty collection';
+    $('#empty-sub').textContent = 'Add tabs manually or move tabs here.';
+    empty.classList.remove('hidden');
+    return;
+  }
+
   empty.classList.add('hidden');
   content.innerHTML = '';
-  content.appendChild(buildCollectionBlock(col, false));
+  // Single collection view: no accordion, flat list
+  content.appendChild(buildCollectionBlock(col, false, false));
 }
 
 function renderSearchResults(content, results) {
@@ -231,12 +267,12 @@ function renderSearchResults(content, results) {
     groups[r.collectionId].tabs.push(r);
   }
   for (const group of Object.values(groups)) {
-    content.appendChild(buildCollectionBlock(group, true));
+    content.appendChild(buildCollectionBlock(group, true, true));
   }
 }
 
 // ── Collection block ───────────────────────────────────
-function buildCollectionBlock(col, readOnly) {
+function buildCollectionBlock(col, readOnly, collapsible) {
   const div = document.createElement('div');
   div.className = 'collection-block';
   div.dataset.id = col.id;
@@ -245,80 +281,173 @@ function buildCollectionBlock(col, readOnly) {
   const archivedTabs = col.tabs.filter((t) => t.archived);
   const totalActive = activeTabs.length;
 
-  const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-
-  // Tab count inline with name
   const countText = totalActive === 1 ? '1 tab' : `${totalActive} tabs`;
 
-  const header = document.createElement('div');
-  header.className = 'collection-header';
-  header.innerHTML = `
-    <span class="collapse-icon">${arrow}</span>
-    <span class="collection-name">${escHtml(col.name)}</span>
-    <span class="collection-tab-count">(${countText})</span>
-    ${readOnly ? '' : `
-    <div class="col-actions">
-      <button class="icon-btn restore-all-btn" title="Restore all">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn rename-btn" title="Rename">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn export-btn" title="Export as Markdown">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 9V11H10V9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2V8M6.5 8L4 5.5M6.5 8L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn danger delete-btn" title="Delete">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-      </button>
-    </div>`}
-  `;
+  if (collapsible) {
+    // Collapsible header for "all" view
+    const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-  header.addEventListener('click', (e) => {
-    if (e.target.closest('.col-actions')) return;
-    div.classList.toggle('collapsed');
-  });
+    const header = document.createElement('div');
+    header.className = 'collection-header';
+    header.innerHTML = `
+      <span class="collapse-icon">${arrow}</span>
+      <span class="collection-name">${escHtml(col.name)}</span>
+      <span class="collection-tab-count">(${countText})</span>
+      ${readOnly ? '' : `
+      <div class="col-actions">
+        <button class="icon-btn restore-all-btn" title="Restore all">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn rename-btn" title="Rename">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn export-btn" title="Export as Markdown">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 9V11H10V9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2V8M6.5 8L4 5.5M6.5 8L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn danger delete-btn" title="Delete">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>`}
+    `;
 
-  if (!readOnly) {
-    header.querySelector('.restore-all-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      for (const t of activeTabs) chrome.tabs.create({ url: t.url, active: false });
-      TabStashStorage.logAction('open', { collectionId: col.id, tabCount: activeTabs.length });
-      showToast(`Opened ${activeTabs.length} tab${activeTabs.length !== 1 ? 's' : ''}`);
+    header.addEventListener('click', (e) => {
+      if (e.target.closest('.col-actions')) return;
+      div.classList.toggle('collapsed');
     });
 
-    header.querySelector('.rename-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      startInlineRename(div, col);
-    });
-
-    header.querySelector('.export-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const real = state.collections.find((c) => c.id === col.id);
-      if (!real) return;
-      downloadText(`${col.name}.md`, TabStashStorage.exportCollectionAsMarkdown(real), 'text/markdown');
-      showToast('Exported');
-    });
-
-    header.querySelector('.delete-btn')?.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      if (confirm(`Delete "${col.name}"?`)) {
-        await TabStashStorage.removeCollection(col.id);
-        if (state.currentView === col.id) state.currentView = 'all';
-        await loadData();
-        render();
-      }
-    });
+    bindCollectionActions(header, col, activeTabs, div);
+    div.appendChild(header);
   }
 
-  div.appendChild(header);
-
+  // Tab list body
   const body = document.createElement('div');
   body.className = 'collection-body';
   for (const tab of [...activeTabs, ...archivedTabs]) {
     body.appendChild(buildTabRow(tab, col.id));
   }
+
+  // Add manual tab form (only in single-collection detail view)
+  if (!collapsible && !readOnly) {
+    body.appendChild(buildAddTabForm(col.id));
+  }
+
   div.appendChild(body);
   return div;
+}
+
+function bindCollectionActions(header, col, activeTabs, blockEl) {
+  header.querySelector('.restore-all-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    for (const t of activeTabs) {
+      chrome.tabs.create({ url: t.url, active: false }).catch((err) => {
+        console.warn('[TabStash] Error opening tab:', err);
+      });
+    }
+    TabStashStorage.logAction('open', { collectionId: col.id, tabCount: activeTabs.length });
+    showToast(`Opened ${activeTabs.length} tab${activeTabs.length !== 1 ? 's' : ''}`);
+  });
+
+  header.querySelector('.rename-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    startInlineRename(blockEl, col);
+  });
+
+  header.querySelector('.export-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const real = state.collections.find((c) => c.id === col.id);
+    if (!real) return;
+    downloadText(`${col.name}.md`, TabStashStorage.exportCollectionAsMarkdown(real), 'text/markdown');
+    showToast('Exported');
+  });
+
+  header.querySelector('.delete-btn')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (confirm(`Delete "${col.name}"? This can't be undone.`)) {
+      try {
+        await TabStashStorage.removeCollection(col.id);
+        if (state.currentView === col.id) state.currentView = 'all';
+        await loadData();
+        render();
+      } catch (err) {
+        console.error('[TabStash] Delete collection error:', err);
+      }
+    }
+  });
+}
+
+// ── Add tab form ───────────────────────────────────────
+function buildAddTabForm(collectionId) {
+  const form = document.createElement('div');
+  form.className = 'add-tab-form';
+
+  const toggle = document.createElement('button');
+  toggle.className = 'add-tab-toggle';
+  toggle.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2V10M2 6H10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+    Add tab manually
+  `;
+
+  const fields = document.createElement('div');
+  fields.className = 'add-tab-fields hidden';
+  fields.innerHTML = `
+    <input type="text" class="add-tab-input" placeholder="Tab title" data-field="title">
+    <input type="url" class="add-tab-input" placeholder="URL (https://...)" data-field="url">
+    <div class="add-tab-actions">
+      <button class="add-tab-submit">Add</button>
+      <button class="add-tab-cancel">Cancel</button>
+    </div>
+  `;
+
+  toggle.addEventListener('click', () => {
+    toggle.classList.add('hidden');
+    fields.classList.remove('hidden');
+    fields.querySelector('[data-field="title"]').focus();
+  });
+
+  fields.querySelector('.add-tab-cancel').addEventListener('click', () => {
+    fields.classList.add('hidden');
+    toggle.classList.remove('hidden');
+    fields.querySelector('[data-field="title"]').value = '';
+    fields.querySelector('[data-field="url"]').value = '';
+  });
+
+  fields.querySelector('.add-tab-submit').addEventListener('click', async () => {
+    const title = fields.querySelector('[data-field="title"]').value.trim();
+    const url = fields.querySelector('[data-field="url"]').value.trim();
+    if (!url) {
+      fields.querySelector('[data-field="url"]').focus();
+      return;
+    }
+
+    // Ensure URL has protocol
+    const finalUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
+
+    try {
+      await TabStashStorage.addManualTab(collectionId, title || finalUrl, finalUrl);
+      console.log(`[TabStash] Added manual tab: ${finalUrl}`);
+      fields.querySelector('[data-field="title"]').value = '';
+      fields.querySelector('[data-field="url"]').value = '';
+      fields.classList.add('hidden');
+      toggle.classList.remove('hidden');
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[TabStash] addManualTab error:', err);
+      showToast('Error adding tab');
+    }
+  });
+
+  // Enter to submit
+  fields.querySelectorAll('.add-tab-input').forEach((input) => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') fields.querySelector('.add-tab-submit').click();
+      if (e.key === 'Escape') fields.querySelector('.add-tab-cancel').click();
+    });
+  });
+
+  form.appendChild(toggle);
+  form.appendChild(fields);
+  return form;
 }
 
 // ── Tab row ────────────────────────────────────────────
@@ -333,7 +462,6 @@ function buildTabRow(tab, collectionId) {
     ? `<img class="tab-favicon" src="${escAttr(icon)}" alt="" loading="lazy">`
     : '<div class="tab-favicon-placeholder"></div>';
 
-  // Build tag pills HTML
   const tagHtml = tags.map((t) =>
     `<span class="tag-chip" data-tag="${escAttr(t)}">${escHtml(t)}<button class="tag-remove" title="Remove tag">\u00d7</button></span>`
   ).join('');
@@ -368,19 +496,23 @@ function buildTabRow(tab, collectionId) {
 
   // Open tab
   row.querySelector('.tab-title').addEventListener('click', () => {
-    chrome.tabs.create({ url: tab.url });
+    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
     TabStashStorage.logAction('open', { tabId: tab.id });
   });
   row.querySelector('.open-btn').addEventListener('click', () => {
-    chrome.tabs.create({ url: tab.url });
+    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
     TabStashStorage.logAction('open', { tabId: tab.id });
   });
 
   // Delete tab
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
-    await TabStashStorage.removeTab(tab.id);
-    await loadData();
-    render();
+    try {
+      await TabStashStorage.removeTab(tab.id);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[TabStash] removeTab error:', err);
+    }
   });
 
   // Move tab
@@ -393,9 +525,13 @@ function buildTabRow(tab, collectionId) {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const tagName = btn.closest('.tag-chip').dataset.tag;
-      await TabStashStorage.removeTag(tab.id, tagName);
-      await loadData();
-      render();
+      try {
+        await TabStashStorage.removeTag(tab.id, tagName);
+        await loadData();
+        render();
+      } catch (err) {
+        console.error('[TabStash] removeTag error:', err);
+      }
     });
   });
 
@@ -413,8 +549,12 @@ function buildTabRow(tab, collectionId) {
     const finish = async () => {
       const val = input.value.trim();
       if (val) {
-        await TabStashStorage.addTag(tab.id, val);
-        await loadData();
+        try {
+          await TabStashStorage.addTag(tab.id, val);
+          await loadData();
+        } catch (err) {
+          console.error('[TabStash] addTag error:', err);
+        }
       }
       render();
     };
@@ -431,9 +571,8 @@ function buildTabRow(tab, collectionId) {
 
 // ── Sidebar ────────────────────────────────────────────
 function updateSidebar() {
-  // No count on "All Tabs" nav item
   const countEl = $('#nav-all-count');
-  countEl.textContent = '';
+  if (countEl) countEl.textContent = '';
 
   $$('.nav-item[data-view]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.view === state.currentView);
@@ -442,7 +581,6 @@ function updateSidebar() {
   const list = $('#sidebar-collections');
   list.innerHTML = '';
 
-  // Pinned section
   const pinned = state.collections.filter((c) => c.isPinned);
   const unpinned = state.collections.filter((c) => !c.isPinned);
 
@@ -477,31 +615,55 @@ function buildSidebarItem(col) {
     ? '<svg class="sidebar-pin-icon" width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
     : '';
 
-  // Hover-pin ribbon (shown on hover for unpinned items)
-  const hoverPin = !col.isPinned
-    ? '<button class="sidebar-hover-pin" title="Pin collection"><svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg></button>'
-    : '<button class="sidebar-hover-pin sidebar-hover-pin-active" title="Unpin collection"><svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg></button>';
+  // Hover actions: pin toggle + delete
+  const hoverPinIcon = col.isPinned
+    ? '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
+    : '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg>';
 
   btn.innerHTML = `
     ${pinSvg}
     <span class="sidebar-col-name">${escHtml(col.name)}</span>
-    ${hoverPin}
+    <span class="sidebar-col-actions">
+      <button class="sidebar-hover-pin${col.isPinned ? ' sidebar-hover-pin-active' : ''}" title="${col.isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
+      <button class="sidebar-hover-delete" title="Delete collection">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
+    </span>
   `;
 
   btn.addEventListener('click', (e) => {
-    if (e.target.closest('.sidebar-hover-pin')) return;
+    if (e.target.closest('.sidebar-col-actions')) return;
     state.currentView = col.id;
     state.searchQuery = '';
     $('#search').value = '';
     render();
   });
 
-  // Pin toggle on hover-pin click
+  // Pin toggle
   btn.querySelector('.sidebar-hover-pin')?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await TabStashStorage.togglePin(col.id);
-    await loadData();
-    render();
+    try {
+      await TabStashStorage.togglePin(col.id);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[TabStash] togglePin error:', err);
+    }
+  });
+
+  // Delete from sidebar
+  btn.querySelector('.sidebar-hover-delete')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (confirm(`Delete "${col.name}"? This can't be undone.`)) {
+      try {
+        await TabStashStorage.removeCollection(col.id);
+        if (state.currentView === col.id) state.currentView = 'all';
+        await loadData();
+        render();
+      } catch (err) {
+        console.error('[TabStash] Delete error:', err);
+      }
+    }
   });
 
   return btn;
@@ -526,7 +688,7 @@ function updateViewHeader() {
     if (col) {
       const n = col.tabs.filter((t) => !t.archived).length;
       title.textContent = col.name;
-      count.textContent = n ? `${n} tab${n !== 1 ? 's' : ''}` : '';
+      count.textContent = n ? `(${n} tab${n !== 1 ? 's' : ''})` : '';
     } else {
       title.textContent = 'Not found';
       count.textContent = '';
@@ -548,8 +710,12 @@ function startInlineRename(blockEl, col) {
   const finish = async () => {
     const v = input.value.trim();
     if (v && v !== current) {
-      await TabStashStorage.renameCollection(col.id, v);
-      await loadData();
+      try {
+        await TabStashStorage.renameCollection(col.id, v);
+        await loadData();
+      } catch (err) {
+        console.error('[TabStash] rename error:', err);
+      }
     }
     render();
   };
@@ -572,11 +738,15 @@ function openMoveModal(tabId, sourceColId) {
     item.className = 'move-item';
     item.textContent = col.name;
     item.addEventListener('click', async () => {
-      await TabStashStorage.moveTab(tabId, col.id);
-      closeMoveModal();
-      await loadData();
-      render();
-      showToast(`Moved to ${col.name}`);
+      try {
+        await TabStashStorage.moveTab(tabId, col.id);
+        closeMoveModal();
+        await loadData();
+        render();
+        showToast(`Moved to ${col.name}`);
+      } catch (err) {
+        console.error('[TabStash] moveTab error:', err);
+      }
     });
     list.appendChild(item);
   }
@@ -596,35 +766,34 @@ function closeMoveModal() {
 function openSettings() {
   const s = state.settings;
 
-  $('#setting-close-tabs').checked = s.closeTabsOnSave !== false;
-
   const archiveEl = $('#setting-archive-days');
   archiveEl.value = !s.archiveEnabled ? '0' : String([7,30,90].reduce((a,b) => Math.abs(b-s.archiveDays) < Math.abs(a-s.archiveDays) ? b : a));
 
-  // Clone-and-replace to avoid duplicate listeners
-  replaceWithClone('#setting-close-tabs', async (el) => {
-    await TabStashStorage.saveSettings({ ...state.settings, closeTabsOnSave: el.checked });
-    state.settings = await TabStashStorage.getSettings();
-    showToast('Saved');
-  }, 'change');
-
   replaceWithClone('#setting-archive-days', async (el) => {
     const v = parseInt(el.value, 10);
-    await TabStashStorage.saveSettings({ ...state.settings, archiveEnabled: v > 0, archiveDays: v > 0 ? v : state.settings.archiveDays });
-    state.settings = await TabStashStorage.getSettings();
-    showToast('Saved');
+    try {
+      await TabStashStorage.saveSettings({ ...state.settings, archiveEnabled: v > 0, archiveDays: v > 0 ? v : state.settings.archiveDays });
+      state.settings = await TabStashStorage.getSettings();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[TabStash] save settings error:', err);
+    }
   }, 'change');
 
   replaceWithClone('#setting-export-btn', async () => {
-    const data = await TabStashStorage.getAll();
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `tabstash-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Exported');
+    try {
+      const data = await TabStashStorage.getAll();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tabstash-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Exported');
+    } catch (err) {
+      console.error('[TabStash] export error:', err);
+    }
   }, 'click');
 
   $('#settings-overlay').classList.remove('hidden');

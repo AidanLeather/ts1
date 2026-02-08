@@ -169,6 +169,7 @@ body {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
+  height: 30px;
   width: 100%;
   border: none;
   background: none;
@@ -201,9 +202,21 @@ body {
   flex: 1;
 }
 
-/* ── Sidebar hover-pin ──────────────────────────────── */
-.sidebar-hover-pin {
+/* ── Sidebar hover actions (pin + delete) ────────────── */
+.sidebar-col-actions {
   display: none;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.sidebar-col-item:hover .sidebar-col-actions {
+  display: flex;
+}
+
+.sidebar-hover-pin,
+.sidebar-hover-delete {
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 20px;
@@ -216,9 +229,6 @@ body {
   flex-shrink: 0;
   transition: color var(--transition), background var(--transition);
 }
-.sidebar-col-item:hover .sidebar-hover-pin {
-  display: flex;
-}
 .sidebar-hover-pin:hover {
   color: var(--text);
   background: var(--bg-active);
@@ -228,6 +238,10 @@ body {
 }
 .sidebar-hover-pin-active:hover {
   color: var(--text-secondary);
+}
+.sidebar-hover-delete:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 .sidebar-footer {
@@ -949,4 +963,87 @@ body {
   outline: none;
   background: var(--bg);
   width: 200px;
+}
+
+/* ── Add tab form ────────────────────────────────────── */
+.add-tab-form {
+  padding: 4px 8px 8px;
+}
+
+.add-tab-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: none;
+  background: none;
+  color: var(--text-tertiary);
+  font: 400 13px var(--font);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition);
+}
+.add-tab-toggle:hover {
+  color: var(--text);
+}
+
+.add-tab-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sidebar);
+}
+
+.add-tab-input {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: 13px var(--font);
+  color: var(--text);
+  background: var(--bg);
+  outline: none;
+  transition: border-color var(--transition);
+}
+.add-tab-input:focus {
+  border-color: var(--accent);
+}
+.add-tab-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.add-tab-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.add-tab-submit {
+  padding: 5px 14px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font: 500 12px var(--font);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.add-tab-submit:hover {
+  background: var(--accent-hover);
+}
+
+.add-tab-cancel {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font: 500 12px var(--font);
+  background: var(--bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.add-tab-cancel:hover {
+  background: var(--bg-hover);
 }
