@@ -181,8 +181,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  min-height: 30px;
+  padding: 4px 8px;
+  min-height: 28px;
   width: 100%;
   border: none;
   background: none;
@@ -229,6 +229,9 @@ body {
 }
 .sidebar-col-item:hover .sidebar-col-count {
   opacity: 0;
+}
+.sidebar-col-item:hover .sidebar-col-count {
+  display: none;
 }
 .sidebar-col-item:hover .sidebar-col-count {
   display: none;
@@ -637,7 +640,7 @@ body {
 }
 
 .collection-section {
-  margin: 16px 0 8px;
+  margin: 12px 0 8px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -645,7 +648,7 @@ body {
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .collection-section::after {
