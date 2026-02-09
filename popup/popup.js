@@ -36,8 +36,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       console.log(`[TabStash popup] Saving ${saveable.length} tabs...`);
 
-      const name = formatName();
-      const col = await TabStashStorage.addCollection(name, saveable);
+      const createdAt = Date.now();
+      const name = formatName(new Date(createdAt));
+      const col = await TabStashStorage.addCollection(name, saveable, {
+        createdAt,
+        autoTitleType: 'timeOfDay',
+      });
       console.log(`[TabStash popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
       await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
@@ -66,8 +70,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      const name = `${formatName()} \u00b7 Left`;
-      await TabStashStorage.addCollection(name, saveable);
+      const createdAt = Date.now();
+      const name = `${formatName(new Date(createdAt))} \u00b7 Left`;
+      await TabStashStorage.addCollection(name, saveable, {
+        createdAt,
+        autoTitleType: 'timeOfDay',
+      });
       await closeTabs(leftTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the left`);
     })
@@ -86,8 +94,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      const name = `${formatName()} \u00b7 Right`;
-      await TabStashStorage.addCollection(name, saveable);
+      const createdAt = Date.now();
+      const name = `${formatName(new Date(createdAt))} \u00b7 Right`;
+      await TabStashStorage.addCollection(name, saveable, {
+        createdAt,
+        autoTitleType: 'timeOfDay',
+      });
       await closeTabs(rightTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the right`);
     })
@@ -106,8 +118,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       console.log(`[TabStash popup] Saving ${saveable.length} tabs (keep open)...`);
 
-      const name = formatName();
-      const col = await TabStashStorage.addCollection(name, saveable);
+      const createdAt = Date.now();
+      const name = formatName(new Date(createdAt));
+      const col = await TabStashStorage.addCollection(name, saveable, {
+        createdAt,
+        autoTitleType: 'timeOfDay',
+      });
       console.log(`[TabStash popup] Saved collection "${name}" (${col.id})`);
 
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
@@ -123,8 +139,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         showStatus('No saveable active tab');
         return;
       }
-      const name = active.title?.trim() || formatName();
-      await TabStashStorage.addCollection(name, [active]);
+      const createdAt = Date.now();
+      const fallbackName = formatName(new Date(createdAt));
+      const name = active.title?.trim() || fallbackName;
+      const options = active.title?.trim()
+        ? {}
+        : { createdAt, autoTitleType: 'timeOfDay' };
+      await TabStashStorage.addCollection(name, [active], options);
       showStatus('Saved this tab');
     })
   );
@@ -261,10 +282,17 @@ async function runWithSaving(btn, action) {
   }
 }
 
-function formatName() {
-  const d = new Date();
-  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} \u00b7 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+function formatName(d = new Date()) {
+  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return `${weekdays[d.getDay()]} ${timeOfDayLabel(d)}`;
+}
+
+function timeOfDayLabel(date) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 17) return 'afternoon';
+  if (hour >= 17 && hour < 21) return 'evening';
+  return 'night';
 }
 
 function showStatus(msg) {

@@ -521,7 +521,18 @@ body {
   align-items: center;
   min-height: 18px;
   flex-shrink: 0;
-  margin-right: auto;
+}
+
+.collection-spacer {
+  flex: 1;
+}
+
+.collection-meta {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-right: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .count-badge {
