@@ -182,6 +182,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.set({ popupAccordionOpen: nextOpen });
   });
 
+  $('#collection-add-confirm').addEventListener('click', () =>
+    runWithSaving($('#collection-add-confirm'), async () => {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const active = tabs.find((t) => t.active);
+      if (!active || !isSaveableTab(active)) {
+        showStatus('No saveable active tab');
+        return;
+      }
+      const collectionId = $('#collection-select').value;
+      if (!collectionId) {
+        showStatus('Choose a collection');
+        return;
+      }
+      await TabStashStorage.addManualTab(collectionId, active.title || active.url, active.url);
+      showStatus('Added tab to collection');
+      $('#collection-picker').classList.add('hidden');
+    })
+  );
+
+  $('#more-options-toggle').addEventListener('click', async () => {
+    const toggle = $('#more-options-toggle');
+    const panel = $('#more-options');
+    const nextOpen = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(nextOpen));
+    panel.classList.toggle('hidden', !nextOpen);
+    await chrome.storage.local.set({ popupAccordionOpen: nextOpen });
+  });
+
+  $('#collection-add-confirm').addEventListener('click', () =>
+    runWithSaving($('#collection-add-confirm'), async () => {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const active = tabs.find((t) => t.active);
+      if (!active || !isSaveableTab(active)) {
+        showStatus('No saveable active tab');
+        return;
+      }
+      const collectionId = $('#collection-select').value;
+      if (!collectionId) {
+        showStatus('Choose a collection');
+        return;
+      }
+      await TabStashStorage.addManualTab(collectionId, active.title || active.url, active.url);
+      showStatus('Added tab to collection');
+      $('#collection-picker').classList.add('hidden');
+    })
+  );
+
   // ── Tertiary: Open TabStash ───────────────────────────
   $('#open-btn').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'openFullPage' }).catch((err) => {
