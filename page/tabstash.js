@@ -188,8 +188,12 @@ async function saveAllTabs() {
       return;
     }
 
-    const name = formatCollectionName();
-    const col = await TabStashStorage.addCollection(name, saveable);
+    const createdAt = Date.now();
+    const name = formatCollectionName(new Date(createdAt));
+    const col = await TabStashStorage.addCollection(name, saveable, {
+      createdAt,
+      autoTitleType: 'timeOfDay',
+    });
     console.log(`[TabStash] Saved ${saveable.length} tabs as "${name}"`);
     await loadData();
     render();
@@ -339,6 +343,10 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   if (collapsible) {
     // Collapsible header for "all" view
     const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
+    const timestampHtml = preciseTimestamp
+      ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
+      : '';
 
     const header = document.createElement('div');
     header.className = 'collection-header';
@@ -346,6 +354,8 @@ function buildCollectionBlock(col, readOnly, collapsible) {
       <span class="collapse-icon">${arrow}</span>
       <span class="collection-name">${escHtml(col.name)}</span>
       <span class="collection-tab-count">(${countText})</span>
+      <span class="collection-spacer"></span>
+      ${timestampHtml}
       ${readOnly ? '' : `
       <div class="col-actions">
         <button class="icon-btn restore-all-btn" title="Restore all">
@@ -989,10 +999,23 @@ function showToast(msg) {
 }
 
 // ── Helpers ────────────────────────────────────────────
-function formatCollectionName() {
-  const d = new Date();
-  const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${m[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} \u00b7 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+function formatCollectionName(d = new Date()) {
+  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  return `${weekdays[d.getDay()]} ${timeOfDayLabel(d)}`;
+}
+
+function timeOfDayLabel(date) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 17) return 'afternoon';
+  if (hour >= 17 && hour < 21) return 'evening';
+  return 'night';
+}
+
+function formatPreciseTimestamp(ts) {
+  const d = new Date(ts);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} \u00b7 ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function relativeDate(ts) {
