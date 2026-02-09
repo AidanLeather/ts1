@@ -547,6 +547,9 @@ function buildTabRow(tab, collectionId) {
       <button class="icon-btn open-btn" title="Open">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
+      <button class="icon-btn edit-btn" title="Edit">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      </button>
       <button class="icon-btn move-tab-btn" title="Move to collection">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" stroke-width="1.1" fill="none"/><path d="M6.5 4V9M4 6.5H9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>
       </button>
@@ -564,6 +567,31 @@ function buildTabRow(tab, collectionId) {
   row.querySelector('.open-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
     TabStashStorage.logAction('open', { tabId: tab.id });
+  });
+
+  // Edit tab
+  row.querySelector('.edit-btn').addEventListener('click', async () => {
+    const nextTitle = prompt('Edit tab title:', tab.title);
+    if (nextTitle === null) return;
+    const nextUrlRaw = prompt('Edit tab URL:', tab.url);
+    if (nextUrlRaw === null) return;
+    const nextUrl = nextUrlRaw.trim();
+    if (!nextUrl) {
+      showToast('URL required');
+      return;
+    }
+    const finalUrl = nextUrl.match(/^https?:\/\//) ? nextUrl : `https://${nextUrl}`;
+    try {
+      await TabStashStorage.updateTab(tab.id, {
+        title: nextTitle.trim() || finalUrl,
+        url: finalUrl,
+      });
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[TabStash] updateTab error:', err);
+      showToast('Error updating tab');
+    }
   });
 
   // Delete tab

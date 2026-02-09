@@ -1,10 +1,13 @@
 /**
  * TabStash – Popup (quick launcher)
  *
- * Three actions:
+ * Actions:
  *   1. Save and close all tabs (primary) – save, close, navigate to TabStash
- *   2. Save all tabs – save only, keep tabs open
- *   3. Open TabStash – open full management page
+ *   2. Save and close tabs to the left/right – save subset and close them
+ *   3. Save all tabs – save only, keep tabs open
+ *   4. Save this tab – save active tab as a new collection
+ *   5. Add this tab to a collection – add active tab to an existing collection
+ *   6. Open TabStash – open full management page
  *
  * Reliability:
  *   - Double-click guard on both save buttons
@@ -17,23 +20,14 @@ let _saving = false; // double-click guard
 
 document.addEventListener('DOMContentLoaded', () => {
   // ── Primary: Save and close all tabs ──────────────────
-  $('#save-close-btn').addEventListener('click', async () => {
-    if (_saving) return;
-    _saving = true;
-    const btn = $('#save-close-btn');
-    btn.disabled = true;
-
-    try {
+  $('#save-close-btn').addEventListener('click', () =>
+    runWithSaving($('#save-close-btn'), async () => {
       const tabs = await chrome.tabs.query({ currentWindow: true });
       const pageUrl = chrome.runtime.getURL('page/tabstash.html');
-      const saveable = tabs.filter(
-        (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')
-      );
+      const saveable = getSaveableTabs(tabs);
 
       if (saveable.length === 0) {
         showStatus('No saveable tabs');
-        btn.disabled = false;
-        _saving = false;
         return;
       }
 
@@ -43,22 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const col = await TabStashStorage.addCollection(name, saveable);
       console.log(`[TabStash popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
-      // Close all tabs except TabStash page itself
-      const closeIds = tabs
-        .filter((t) => t.id && !t.url?.startsWith(pageUrl))
-        .map((t) => t.id)
-        .filter(Boolean);
+      await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
 
-      if (closeIds.length > 0) {
-        try {
-          await chrome.tabs.remove(closeIds);
-          console.log(`[TabStash popup] Closed ${closeIds.length} tabs`);
-        } catch (err) {
-          console.warn('[TabStash popup] Error closing tabs:', err);
-        }
-      }
-
-      // Open/focus TabStash page
       try {
         await chrome.runtime.sendMessage({ action: 'openFullPage' });
       } catch (err) {
@@ -66,31 +46,58 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       window.close();
-    } catch (err) {
-      console.error('[TabStash popup] Save-and-close failed:', err);
-      showStatus('Error saving tabs');
-      btn.disabled = false;
-      _saving = false;
-    }
-  });
+    })
+  );
 
-  // ── Secondary: Save all tabs (keep open) ──────────────
-  $('#save-btn').addEventListener('click', async () => {
-    if (_saving) return;
-    _saving = true;
-    const btn = $('#save-btn');
-    btn.disabled = true;
-
-    try {
+  // ── Save and close left/right tabs ────────────────────
+  $('#save-close-left-btn').addEventListener('click', () =>
+    runWithSaving($('#save-close-left-btn'), async () => {
       const tabs = await chrome.tabs.query({ currentWindow: true });
-      const saveable = tabs.filter(
-        (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')
-      );
+      const active = tabs.find((t) => t.active);
+      if (!active) return;
+      const leftTabs = tabs.filter((t) => t.index < active.index);
+      const saveable = getSaveableTabs(leftTabs);
+
+      if (saveable.length === 0) {
+        showStatus('No saveable tabs to the left');
+        return;
+      }
+
+      const name = `${formatName()} \u00b7 Left`;
+      await TabStashStorage.addCollection(name, saveable);
+      await closeTabs(leftTabs);
+      showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the left`);
+    })
+  );
+
+  $('#save-close-right-btn').addEventListener('click', () =>
+    runWithSaving($('#save-close-right-btn'), async () => {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const active = tabs.find((t) => t.active);
+      if (!active) return;
+      const rightTabs = tabs.filter((t) => t.index > active.index);
+      const saveable = getSaveableTabs(rightTabs);
+
+      if (saveable.length === 0) {
+        showStatus('No saveable tabs to the right');
+        return;
+      }
+
+      const name = `${formatName()} \u00b7 Right`;
+      await TabStashStorage.addCollection(name, saveable);
+      await closeTabs(rightTabs);
+      showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the right`);
+    })
+  );
+
+  // ── Save all tabs (keep open) ─────────────────────────
+  $('#save-btn').addEventListener('click', () =>
+    runWithSaving($('#save-btn'), async () => {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const saveable = getSaveableTabs(tabs);
 
       if (saveable.length === 0) {
         showStatus('No saveable tabs');
-        btn.disabled = false;
-        _saving = false;
         return;
       }
 
@@ -101,14 +108,67 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log(`[TabStash popup] Saved collection "${name}" (${col.id})`);
 
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
-    } catch (err) {
-      console.error('[TabStash popup] Save failed:', err);
-      showStatus('Error saving tabs');
-    } finally {
-      btn.disabled = false;
-      _saving = false;
+    })
+  );
+
+  // ── Save this tab ─────────────────────────────────────
+  $('#save-tab-btn').addEventListener('click', () =>
+    runWithSaving($('#save-tab-btn'), async () => {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const active = tabs.find((t) => t.active);
+      if (!active || !isSaveableTab(active)) {
+        showStatus('No saveable active tab');
+        return;
+      }
+      const name = active.title?.trim() || formatName();
+      await TabStashStorage.addCollection(name, [active]);
+      showStatus('Saved this tab');
+    })
+  );
+
+  // ── Add this tab to a collection ──────────────────────
+  $('#add-tab-btn').addEventListener('click', async () => {
+    const picker = $('#collection-picker');
+    if (!picker.classList.contains('hidden')) {
+      picker.classList.add('hidden');
+      return;
     }
+
+    const collections = await TabStashStorage.getCollections();
+    if (!collections.length) {
+      showStatus('No collections yet');
+      return;
+    }
+    const sorted = TabStashStorage.sortCollections(collections);
+    const select = $('#collection-select');
+    select.innerHTML = '';
+    for (const col of sorted) {
+      const opt = document.createElement('option');
+      opt.value = col.id;
+      opt.textContent = col.name;
+      select.appendChild(opt);
+    }
+    picker.classList.remove('hidden');
   });
+
+  $('#collection-add-confirm').addEventListener('click', () =>
+    runWithSaving($('#collection-add-confirm'), async () => {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const active = tabs.find((t) => t.active);
+      if (!active || !isSaveableTab(active)) {
+        showStatus('No saveable active tab');
+        return;
+      }
+      const collectionId = $('#collection-select').value;
+      if (!collectionId) {
+        showStatus('Choose a collection');
+        return;
+      }
+      await TabStashStorage.addManualTab(collectionId, active.title || active.url, active.url);
+      showStatus('Added tab to collection');
+      $('#collection-picker').classList.add('hidden');
+    })
+  );
 
   // ── Tertiary: Open TabStash ───────────────────────────
   $('#open-btn').addEventListener('click', () => {
@@ -118,6 +178,46 @@ document.addEventListener('DOMContentLoaded', () => {
     window.close();
   });
 });
+
+function getSaveableTabs(tabs) {
+  return tabs.filter(isSaveableTab);
+}
+
+function isSaveableTab(tab) {
+  return tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://');
+}
+
+async function closeTabs(tabs) {
+  const closeIds = tabs
+    .filter((t) => t.id)
+    .map((t) => t.id)
+    .filter(Boolean);
+
+  if (closeIds.length > 0) {
+    try {
+      await chrome.tabs.remove(closeIds);
+      console.log(`[TabStash popup] Closed ${closeIds.length} tabs`);
+    } catch (err) {
+      console.warn('[TabStash popup] Error closing tabs:', err);
+    }
+  }
+}
+
+async function runWithSaving(btn, action) {
+  if (_saving) return;
+  _saving = true;
+  if (btn) btn.disabled = true;
+
+  try {
+    await action();
+  } catch (err) {
+    console.error('[TabStash popup] Action failed:', err);
+    showStatus('Error performing action');
+  } finally {
+    if (btn) btn.disabled = false;
+    _saving = false;
+  }
+}
 
 function formatName() {
   const d = new Date();
