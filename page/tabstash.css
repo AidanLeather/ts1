@@ -32,7 +32,14 @@
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.1);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
   --transition: 200ms ease;
-  --sidebar-w: 220px;
+  --sidebar-w: 240px;
+  --sidebar-pinned-bg: #f1f3f6;
+  --sidebar-pinned-hover-bg: #e9edf3;
+  --sidebar-pinned-active-bg: #e4e9f0;
+  --sidebar-count-bg: #f1f1f1;
+  --sidebar-count-text: #8a8a8a;
+  --sidebar-count-pinned-bg: #e2e7ee;
+  --sidebar-count-pinned-text: #5f6773;
 }
 
 html, body {
@@ -145,12 +152,12 @@ body {
 }
 
 .sidebar-collections {
-  padding: 0 10px;
+  padding: 6px 10px 12px;
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 6px;
 }
 
 .sidebar-collections::-webkit-scrollbar {
@@ -168,8 +175,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px;
-  height: 30px;
+  padding: 8px 10px;
+  height: 34px;
   width: 100%;
   border: none;
   background: none;
@@ -188,6 +195,32 @@ body {
 .sidebar-col-item.active {
   background: var(--accent-selected);
   color: var(--text);
+}
+.sidebar-col-item--pinned {
+  background: var(--sidebar-pinned-bg);
+  color: var(--text);
+}
+.sidebar-col-item--pinned:hover {
+  background: var(--sidebar-pinned-hover-bg);
+}
+.sidebar-col-item--pinned.active {
+  background: var(--sidebar-pinned-active-bg);
+}
+
+.sidebar-col-count {
+  margin-left: auto;
+  margin-right: 6px;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--sidebar-count-bg);
+  color: var(--sidebar-count-text);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.sidebar-col-count--pinned {
+  background: var(--sidebar-count-pinned-bg);
+  color: var(--sidebar-count-pinned-text);
 }
 
 .sidebar-pin-icon {
