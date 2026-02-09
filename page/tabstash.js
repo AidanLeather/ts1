@@ -98,6 +98,9 @@ function bindEvents() {
   // Save open tabs (sidebar link)
   $('#save-tabs-btn').addEventListener('click', saveAllTabs);
 
+  // Empty state CTA
+  $('#empty-cta-btn')?.addEventListener('click', saveAllTabs);
+
   // New collection
   $('#new-collection-btn').addEventListener('click', async () => {
     const name = prompt('Collection name:');
@@ -218,8 +221,10 @@ function render() {
 
     if (count === 0) {
       content.innerHTML = '';
-      $('#empty-title').textContent = 'No results';
-      $('#empty-sub').textContent = `Nothing matching "${state.searchQuery}"`;
+      setEmptyState({
+        title: 'No results',
+        sub: `Nothing matching "${state.searchQuery}"`,
+      });
       empty.classList.remove('hidden');
     } else {
       empty.classList.add('hidden');
@@ -230,8 +235,13 @@ function render() {
   }
 
   filterBar.classList.add('hidden');
-  $('#empty-title').textContent = 'Save your first tabs';
-  $('#empty-sub').textContent = 'Click "Save open tabs" in the sidebar or use the toolbar popup.';
+  setEmptyState({
+    title: 'Save your first session',
+    description: 'TabStash turns your open tabs into saved sessions you can revisit anytime.',
+    sub: 'Use the button below or click "Save open tabs" in the sidebar.',
+    showDescription: true,
+    showCta: true,
+  });
 
   if (state.currentView === 'all') {
     renderAllView(content, empty);
@@ -272,8 +282,7 @@ function renderCollectionView(content, empty, colId) {
   const col = state.collections.find((c) => c.id === colId);
   if (!col) {
     content.innerHTML = '';
-    $('#empty-title').textContent = 'Collection not found';
-    $('#empty-sub').textContent = '';
+    setEmptyState({ title: 'Collection not found', sub: '' });
     empty.classList.remove('hidden');
     return;
   }
@@ -284,8 +293,7 @@ function renderCollectionView(content, empty, colId) {
     const wrapper = document.createElement('div');
     wrapper.appendChild(buildAddTabForm(col.id));
     content.appendChild(wrapper);
-    $('#empty-title').textContent = 'Empty collection';
-    $('#empty-sub').textContent = 'Add tabs manually or move tabs here.';
+    setEmptyState({ title: 'Empty collection', sub: 'Add tabs manually or move tabs here.' });
     empty.classList.remove('hidden');
     return;
   }
@@ -306,6 +314,22 @@ function renderSearchResults(content, results) {
   }
   for (const group of Object.values(groups)) {
     content.appendChild(buildCollectionBlock(group, true, true));
+  }
+}
+
+function setEmptyState({ title, sub, description = '', showDescription = false, showCta = false }) {
+  $('#empty-title').textContent = title;
+  $('#empty-sub').textContent = sub;
+
+  const descEl = $('#empty-desc');
+  if (descEl) {
+    descEl.textContent = description;
+    descEl.classList.toggle('hidden', !showDescription);
+  }
+
+  const ctaBtn = $('#empty-cta-btn');
+  if (ctaBtn) {
+    ctaBtn.classList.toggle('hidden', !showCta);
   }
 }
 
@@ -673,28 +697,42 @@ function updateSidebar() {
 
   const pinned = state.collections.filter((c) => c.isPinned);
   const unpinned = state.collections.filter((c) => !c.isPinned);
+  const recent = [];
+  const archived = [];
 
-  if (pinned.length > 0) {
+  const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
     label.className = 'sidebar-section-label';
-    label.textContent = 'Pinned';
+    label.textContent = labelText;
     list.appendChild(label);
-    for (const col of pinned) {
-      list.appendChild(buildSidebarItem(col));
+
+    if (items.length > 0) {
+      for (const col of items) {
+        list.appendChild(buildSidebarItem(col));
+      }
+      return;
     }
-  }
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'sidebar-section-placeholder';
+    placeholder.textContent = emptyText;
+    list.appendChild(placeholder);
+  };
+
+  addSidebarSection('Pinned', pinned, 'No pinned sessions yet.');
+  addSidebarSection('Recents', recent, 'No recent sessions yet.');
 
   if (unpinned.length > 0) {
-    if (pinned.length > 0) {
-      const label = document.createElement('div');
-      label.className = 'sidebar-section-label';
-      label.textContent = 'Collections';
-      list.appendChild(label);
-    }
+    const label = document.createElement('div');
+    label.className = 'sidebar-section-label';
+    label.textContent = 'Collections';
+    list.appendChild(label);
     for (const col of unpinned) {
       list.appendChild(buildSidebarItem(col));
     }
   }
+
+  addSidebarSection('Archive', archived, 'No archived sessions yet.');
 }
 
 function buildSidebarItem(col) {
