@@ -70,7 +70,7 @@ async function createSuggestedTemplates() {
   ];
 
   for (const tmpl of templates) {
-    await TabStashStorage.addCollection(tmpl.name, [], { isPinned: true, type: 'collection' });
+    await TabStashStorage.addCollection(tmpl.name, [], { isPinned: true });
   }
   console.log('[TabStash SW] Created suggested pinned collections.');
 }

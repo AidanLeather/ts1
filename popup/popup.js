@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`[TabStash popup] Saving ${saveable.length} tabs...`);
 
       const name = formatName();
-      const col = await TabStashStorage.addCollection(name, saveable, { type: 'stash' });
+      const col = await TabStashStorage.addCollection(name, saveable);
       console.log(`[TabStash popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
       await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const name = `${formatName()} \u00b7 Left`;
-      await TabStashStorage.addCollection(name, saveable, { type: 'stash' });
+      await TabStashStorage.addCollection(name, saveable);
       await closeTabs(leftTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the left`);
     })
@@ -87,7 +87,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const name = `${formatName()} \u00b7 Right`;
-      await TabStashStorage.addCollection(name, saveable, { type: 'stash' });
+      await TabStashStorage.addCollection(name, saveable);
       await closeTabs(rightTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the right`);
     })
@@ -107,7 +107,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`[TabStash popup] Saving ${saveable.length} tabs (keep open)...`);
 
       const name = formatName();
-      const col = await TabStashStorage.addCollection(name, saveable, { type: 'stash' });
+      const col = await TabStashStorage.addCollection(name, saveable);
       console.log(`[TabStash popup] Saved collection "${name}" (${col.id})`);
 
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       const name = active.title?.trim() || formatName();
-      await TabStashStorage.addCollection(name, [active], { type: 'stash' });
+      await TabStashStorage.addCollection(name, [active]);
       showStatus('Saved this tab');
     })
   );
@@ -152,34 +152,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       select.appendChild(opt);
     }
     picker.classList.remove('hidden');
-  });
-
-  $('#collection-add-confirm').addEventListener('click', () =>
-    runWithSaving($('#collection-add-confirm'), async () => {
-      const tabs = await chrome.tabs.query({ currentWindow: true });
-      const active = tabs.find((t) => t.active);
-      if (!active || !isSaveableTab(active)) {
-        showStatus('No saveable active tab');
-        return;
-      }
-      const collectionId = $('#collection-select').value;
-      if (!collectionId) {
-        showStatus('Choose a collection');
-        return;
-      }
-      await TabStashStorage.addManualTab(collectionId, active.title || active.url, active.url);
-      showStatus('Added tab to collection');
-      $('#collection-picker').classList.add('hidden');
-    })
-  );
-
-  $('#more-options-toggle').addEventListener('click', async () => {
-    const toggle = $('#more-options-toggle');
-    const panel = $('#more-options');
-    const nextOpen = toggle.getAttribute('aria-expanded') !== 'true';
-    toggle.setAttribute('aria-expanded', String(nextOpen));
-    panel.classList.toggle('hidden', !nextOpen);
-    await chrome.storage.local.set({ popupAccordionOpen: nextOpen });
   });
 
   $('#collection-add-confirm').addEventListener('click', () =>

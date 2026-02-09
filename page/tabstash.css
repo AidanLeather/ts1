@@ -376,16 +376,6 @@ body {
   letter-spacing: -0.3px;
 }
 
-.view-badge {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 2px 6px;
-  border-radius: 10px;
-  background: var(--bg-active);
-  color: var(--text-tertiary);
-}
-
 .view-count {
   font-size: 13px;
   color: var(--text-tertiary);
@@ -492,17 +482,6 @@ body {
   color: var(--text);
 }
 
-.collection-type-badge {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 2px 6px;
-  border-radius: 10px;
-  background: var(--bg-active);
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
 .collection-tab-count {
   font-size: 12px;
   color: var(--text-tertiary);
@@ -526,31 +505,6 @@ body {
 }
 .collection-block.collapsed .collection-body {
   display: none;
-}
-
-.collection-note {
-  padding: 4px 8px 2px 26px;
-}
-
-.collection-block.collapsed .collection-note {
-  display: none;
-}
-
-.collection-note-input {
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 4px 8px;
-  font-size: 12px;
-  font-family: var(--font);
-  color: var(--text);
-  background: var(--bg);
-  resize: none;
-}
-
-.collection-note-input:focus {
-  outline: 1px solid var(--accent);
-  border-color: var(--accent);
 }
 
 /* ── Tab row ─────────────────────────────────────────── */
@@ -625,28 +579,6 @@ body {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.tab-star {
-  border: none;
-  background: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  padding: 2px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-}
-
-.tab-star:hover,
-.tab-star:focus-visible {
-  color: var(--accent);
-  background: var(--bg-active);
-  outline: none;
-}
-
-.tab-star.starred {
-  color: var(--accent);
 }
 
 .tab-date {
