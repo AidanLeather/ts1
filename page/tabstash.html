@@ -24,7 +24,7 @@
 
       <!-- Save open tabs link -->
       <button id="save-tabs-btn" class="sidebar-save-link">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+        <svg width="14" height="14" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V10.5M2.5 6.5H10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
         Save open tabs
       </button>
 
@@ -33,6 +33,7 @@
       <div id="sidebar-collections" class="sidebar-collections"></div>
 
       <div class="sidebar-footer">
+        <div id="sidebar-system" class="sidebar-system"></div>
         <button id="new-collection-btn" class="nav-item nav-item-muted">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none"><path d="M7.5 3V12M3 7.5H12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
           New collection
@@ -48,7 +49,7 @@
     <main class="main">
       <header class="main-header">
         <div class="search-bar">
-          <svg class="search-icon" width="15" height="15" viewBox="0 0 15 15" fill="none">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 15 15" fill="none">
             <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.3"/>
             <line x1="10" y1="10" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
           </svg>
@@ -90,7 +91,7 @@
       <!-- Empty state -->
       <div id="empty-state" class="empty-state hidden">
         <div class="empty-icon">
-          <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+          <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
             <rect x="5" y="9" width="30" height="22" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
             <path d="M5 15H35" stroke="currentColor" stroke-width="1.5"/>
             <circle cx="10" cy="12" r="1" fill="currentColor"/>
@@ -165,6 +166,7 @@
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
 
+  <script src="../lib/time.js"></script>
   <script src="../lib/storage.js"></script>
   <script src="tabstash.js"></script>
 </body>

@@ -373,8 +373,7 @@ function renderCollectionView(content, empty, colId) {
 
   empty.classList.add('hidden');
   content.innerHTML = '';
-  // Single collection view: no accordion, flat list
-  content.appendChild(buildCollectionBlock(col, false, false));
+  content.appendChild(buildCollectionBlock(col, false, true));
 }
 
 function renderSearchResults(content, results) {
@@ -439,13 +438,15 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
     : '';
 
+  const nameClass = col.autoTitleType === 'timeOfDay'
+    ? 'collection-name auto-named'
+    : 'collection-name user-named';
   const header = document.createElement('div');
   header.className = `collection-header${collapsible ? '' : ' collection-header--single'}`;
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon">${arrow}</span>` : '<span class="collapse-icon placeholder"></span>'}
-    <span class="collection-name">${escHtml(col.name)}</span>
+    <span class="${nameClass}">${escHtml(col.name)}</span>
     <span class="collection-tab-count"></span>
-    <span class="collection-spacer"></span>
     ${readOnly ? '' : `
     <div class="col-actions">
       <button class="icon-btn restore-all-btn" title="Restore all">
@@ -776,9 +777,13 @@ function updateSidebar() {
 
   const list = $('#sidebar-collections');
   list.innerHTML = '';
+  const systemList = $('#sidebar-system');
+  if (systemList) systemList.innerHTML = '';
 
-  const pinned = state.collections.filter((c) => c.isPinned);
-  const unpinned = state.collections.filter((c) => !c.isPinned);
+  const isUnsorted = (col) => col.name === 'Unsorted';
+  const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c));
+  const unpinned = state.collections.filter((c) => !c.isPinned && !isUnsorted(c));
+  const unsorted = state.collections.find(isUnsorted);
 
   const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
@@ -809,6 +814,10 @@ function updateSidebar() {
     for (const col of unpinned) {
       list.appendChild(buildSidebarItem(col));
     }
+  }
+
+  if (unsorted && systemList) {
+    systemList.appendChild(buildSidebarItem(unsorted));
   }
 }
 
@@ -884,11 +893,13 @@ function buildSidebarItem(col) {
 }
 
 function updateViewHeader() {
+  const viewHeader = $('.view-header');
   const title = $('#view-title');
   const count = $('#view-count');
   const actions = $('#view-actions');
 
   if (state.searchQuery.trim()) {
+    viewHeader.classList.remove('hidden');
     title.textContent = 'Search';
     count.innerHTML = '';
     actions.classList.add('hidden');
@@ -896,6 +907,7 @@ function updateViewHeader() {
   }
 
   if (state.currentView === 'all') {
+    viewHeader.classList.remove('hidden');
     const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
     title.textContent = 'All Tabs';
     count.innerHTML = '';
@@ -904,6 +916,7 @@ function updateViewHeader() {
     }
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else {
+    viewHeader.classList.add('hidden');
     const col = state.collections.find((c) => c.id === state.currentView);
     if (col) {
       const n = col.tabs.filter((t) => !t.archived).length;
@@ -1249,15 +1262,7 @@ function showToast(msg) {
 // ── Helpers ────────────────────────────────────────────
 function formatCollectionName(d = new Date()) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()} ${timeOfDayLabel(d)}`;
-}
-
-function timeOfDayLabel(date) {
-  const hour = date.getHours();
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 21) return 'evening';
-  return 'night';
+  return `${months[d.getMonth()]} ${d.getDate()} ${TabStashTime.timeOfDayLabel(d)}`;
 }
 
 function formatPreciseTimestamp(ts) {
@@ -1281,9 +1286,18 @@ function relativeDate(ts) {
 function shortUrl(url) {
   try {
     const u = new URL(url);
-    const p = u.pathname !== '/' ? u.pathname : '';
-    const s = u.hostname + p;
-    return s.length > 55 ? s.slice(0, 52) + '\u2026' : s;
+    const maxLen = 40;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const host = u.hostname;
+    let display = host;
+    if (parts.length === 1) {
+      display = `${host}/${parts[0]}`;
+    } else if (parts.length > 1) {
+      display = `${host}/\u2026/${parts[parts.length - 1]}`;
+    }
+    if (display.length <= maxLen) return display;
+    const keep = Math.max(10, Math.floor((maxLen - 1) / 2));
+    return `${display.slice(0, keep)}\u2026${display.slice(-keep)}`;
   } catch { return url; }
 }
 
