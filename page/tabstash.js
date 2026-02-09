@@ -372,6 +372,10 @@ function buildCollectionBlock(col, readOnly, collapsible) {
         </button>
       </div>`}
     `;
+    const countBadge = buildCountBadge(countText, col.isPinned ? 'pinned' : null);
+    if (countBadge) {
+      header.querySelector('.collection-tab-count')?.appendChild(countBadge);
+    }
 
     const accordionState = getAccordionState();
     if (accordionState[col.id]) {
@@ -709,22 +713,31 @@ function updateSidebar() {
 
 function buildSidebarItem(col) {
   const btn = document.createElement('button');
-  btn.className = `sidebar-col-item${state.currentView === col.id ? ' active' : ''}`;
+  const isPinned = Boolean(col.isPinned);
+  btn.className = `sidebar-col-item sidebar-col-item--${isPinned ? 'pinned' : 'standard'}${state.currentView === col.id ? ' active' : ''}`;
 
-  const pinSvg = col.isPinned
+  const pinSvg = isPinned
     ? '<svg class="sidebar-pin-icon" width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
     : '';
 
+  const activeCount = Array.isArray(col.tabs)
+    ? col.tabs.filter((t) => !t.archived).length
+    : 0;
+  const countBadge = activeCount > 0
+    ? `<span class="sidebar-col-count${isPinned ? ' sidebar-col-count--pinned' : ''}">${activeCount}</span>`
+    : '';
+
   // Hover actions: pin toggle + delete
-  const hoverPinIcon = col.isPinned
+  const hoverPinIcon = isPinned
     ? '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
     : '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg>';
 
   btn.innerHTML = `
     ${pinSvg}
     <span class="sidebar-col-name">${escHtml(col.name)}</span>
+    ${countBadge}
     <span class="sidebar-col-actions">
-      <button class="sidebar-hover-pin${col.isPinned ? ' sidebar-hover-pin-active' : ''}" title="${col.isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
+      <button class="sidebar-hover-pin${isPinned ? ' sidebar-hover-pin-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
       <button class="sidebar-hover-delete" title="Delete collection">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
       </button>
@@ -776,7 +789,7 @@ function updateViewHeader() {
 
   if (state.searchQuery.trim()) {
     title.textContent = 'Search';
-    count.textContent = '';
+    count.innerHTML = '';
     actions.classList.add('hidden');
     return;
   }
@@ -784,20 +797,34 @@ function updateViewHeader() {
   if (state.currentView === 'all') {
     const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
     title.textContent = 'All Tabs';
-    count.textContent = total ? `${total} tab${total !== 1 ? 's' : ''}` : '';
+    count.innerHTML = '';
+    if (total) {
+      count.appendChild(buildCountBadge(`${total} tab${total !== 1 ? 's' : ''}`));
+    }
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else {
     const col = state.collections.find((c) => c.id === state.currentView);
     if (col) {
       const n = col.tabs.filter((t) => !t.archived).length;
       title.textContent = col.name;
-      count.textContent = n ? `(${n} tab${n !== 1 ? 's' : ''})` : '';
+      count.innerHTML = '';
+      if (n) {
+        count.appendChild(buildCountBadge(`${n} tab${n !== 1 ? 's' : ''}`));
+      }
     } else {
       title.textContent = 'Not found';
-      count.textContent = '';
+      count.innerHTML = '';
     }
     actions.classList.add('hidden');
   }
+}
+
+function buildCountBadge(text, variant) {
+  if (!text) return null;
+  const badge = document.createElement('span');
+  badge.className = `count-badge${variant ? ` count-badge--${variant}` : ''}`;
+  badge.textContent = text;
+  return badge;
 }
 
 // ── Inline rename ──────────────────────────────────────
