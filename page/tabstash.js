@@ -345,7 +345,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     header.innerHTML = `
       <span class="collapse-icon">${arrow}</span>
       <span class="collection-name">${escHtml(col.name)}</span>
-      <span class="collection-tab-count">(${countText})</span>
+      <span class="collection-tab-count"></span>
       ${readOnly ? '' : `
       <div class="col-actions">
         <button class="icon-btn restore-all-btn" title="Restore all">
@@ -362,6 +362,10 @@ function buildCollectionBlock(col, readOnly, collapsible) {
         </button>
       </div>`}
     `;
+    const countBadge = buildCountBadge(countText, col.isPinned ? 'pinned' : null);
+    if (countBadge) {
+      header.querySelector('.collection-tab-count')?.appendChild(countBadge);
+    }
 
     const accordionState = getAccordionState();
     if (accordionState[col.id]) {
@@ -766,7 +770,7 @@ function updateViewHeader() {
 
   if (state.searchQuery.trim()) {
     title.textContent = 'Search';
-    count.textContent = '';
+    count.innerHTML = '';
     actions.classList.add('hidden');
     return;
   }
@@ -774,20 +778,34 @@ function updateViewHeader() {
   if (state.currentView === 'all') {
     const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
     title.textContent = 'All Tabs';
-    count.textContent = total ? `${total} tab${total !== 1 ? 's' : ''}` : '';
+    count.innerHTML = '';
+    if (total) {
+      count.appendChild(buildCountBadge(`${total} tab${total !== 1 ? 's' : ''}`));
+    }
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else {
     const col = state.collections.find((c) => c.id === state.currentView);
     if (col) {
       const n = col.tabs.filter((t) => !t.archived).length;
       title.textContent = col.name;
-      count.textContent = n ? `(${n} tab${n !== 1 ? 's' : ''})` : '';
+      count.innerHTML = '';
+      if (n) {
+        count.appendChild(buildCountBadge(`${n} tab${n !== 1 ? 's' : ''}`));
+      }
     } else {
       title.textContent = 'Not found';
-      count.textContent = '';
+      count.innerHTML = '';
     }
     actions.classList.add('hidden');
   }
+}
+
+function buildCountBadge(text, variant) {
+  if (!text) return null;
+  const badge = document.createElement('span');
+  badge.className = `count-badge${variant ? ` count-badge--${variant}` : ''}`;
+  badge.textContent = text;
+  return badge;
 }
 
 // ── Inline rename ──────────────────────────────────────
