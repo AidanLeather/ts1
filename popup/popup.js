@@ -2,12 +2,13 @@
  * TabStash – Popup (quick launcher)
  *
  * Actions:
- *   1. Save and close all tabs (primary) – save, close, navigate to TabStash
- *   2. Save and close tabs to the left/right – save subset and close them
- *   3. Save all tabs – save only, keep tabs open
- *   4. Save this tab – save active tab as a new collection
- *   5. Add this tab to a collection – add active tab to an existing collection
- *   6. Open TabStash – open full management page
+ *   1. Save session & close tabs (primary) – save, close, navigate to TabStash
+ *   2. Save this tab – save active tab as a new collection
+ *   3. Add this tab to a collection – add active tab to an existing collection
+ *   4. More options accordion:
+ *      - Save & close tabs to the left/right
+ *      - Save all tabs (don’t close)
+ *   5. Open TabStash – open full management page
  *
  * Reliability:
  *   - Double-click guard on both save buttons
@@ -18,7 +19,9 @@
 const $ = (sel) => document.querySelector(sel);
 let _saving = false; // double-click guard
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await initAccordionState();
+
   // ── Primary: Save and close all tabs ──────────────────
   $('#save-close-btn').addEventListener('click', () =>
     runWithSaving($('#save-close-btn'), async () => {
@@ -170,6 +173,34 @@ document.addEventListener('DOMContentLoaded', () => {
     })
   );
 
+  $('#more-options-toggle').addEventListener('click', async () => {
+    const toggle = $('#more-options-toggle');
+    const panel = $('#more-options');
+    const nextOpen = toggle.getAttribute('aria-expanded') !== 'true';
+    toggle.setAttribute('aria-expanded', String(nextOpen));
+    panel.classList.toggle('hidden', !nextOpen);
+    await chrome.storage.local.set({ popupAccordionOpen: nextOpen });
+  });
+
+  $('#collection-add-confirm').addEventListener('click', () =>
+    runWithSaving($('#collection-add-confirm'), async () => {
+      const tabs = await chrome.tabs.query({ currentWindow: true });
+      const active = tabs.find((t) => t.active);
+      if (!active || !isSaveableTab(active)) {
+        showStatus('No saveable active tab');
+        return;
+      }
+      const collectionId = $('#collection-select').value;
+      if (!collectionId) {
+        showStatus('Choose a collection');
+        return;
+      }
+      await TabStashStorage.addManualTab(collectionId, active.title || active.url, active.url);
+      showStatus('Added tab to collection');
+      $('#collection-picker').classList.add('hidden');
+    })
+  );
+
   // ── Tertiary: Open TabStash ───────────────────────────
   $('#open-btn').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'openFullPage' }).catch((err) => {
@@ -178,6 +209,17 @@ document.addEventListener('DOMContentLoaded', () => {
     window.close();
   });
 });
+
+async function initAccordionState() {
+  try {
+    const { popupAccordionOpen } = await chrome.storage.local.get('popupAccordionOpen');
+    const isOpen = Boolean(popupAccordionOpen);
+    $('#more-options-toggle').setAttribute('aria-expanded', String(isOpen));
+    $('#more-options').classList.toggle('hidden', !isOpen);
+  } catch (err) {
+    console.warn('[TabStash popup] Error loading accordion state:', err);
+  }
+}
 
 function getSaveableTabs(tabs) {
   return tabs.filter(isSaveableTab);
