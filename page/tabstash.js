@@ -435,12 +435,12 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
-  const timestampHtml = preciseTimestamp
+  const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
     : '';
 
   const header = document.createElement('div');
-  header.className = 'collection-header';
+  header.className = `collection-header${collapsible ? '' : ' collection-header--single'}`;
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon">${arrow}</span>` : '<span class="collapse-icon placeholder"></span>'}
     <span class="collection-name">${escHtml(col.name)}</span>

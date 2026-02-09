@@ -181,8 +181,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
-  min-height: 34px;
+  padding: 6px 10px;
+  min-height: 30px;
   width: 100%;
   border: none;
   background: none;
@@ -229,6 +229,9 @@ body {
 }
 .sidebar-col-item:hover .sidebar-col-count {
   opacity: 0;
+}
+.sidebar-col-item:hover .sidebar-col-count {
+  display: none;
 }
 .sidebar-col-count--pinned {
   background: var(--sidebar-count-pinned-bg);
@@ -630,7 +633,7 @@ body {
 
 /* ── Collection block ────────────────────────────────── */
 .collection-block {
-  margin-bottom: 4px;
+  margin-bottom: 10px;
 }
 
 .collection-section {
@@ -638,10 +641,11 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .collection-section::after {
@@ -663,6 +667,15 @@ body {
 }
 .collection-header:hover {
   background: var(--bg-hover);
+}
+.collection-header--single {
+  padding-left: 0;
+  cursor: default;
+}
+.collection-header--single .collection-name,
+.collection-header--single .collection-tab-count,
+.collection-header--single .collapse-icon.placeholder {
+  display: none;
 }
 
 .collapse-icon {
@@ -693,6 +706,7 @@ body {
   align-items: center;
   min-height: 18px;
   flex-shrink: 0;
+  margin-left: 6px;
 }
 
 .collection-spacer {
@@ -713,16 +727,16 @@ body {
   justify-content: center;
   padding: 2px 6px;
   border-radius: 6px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.2px;
-  color: var(--text-tertiary);
-  background: #eef0f2;
+  color: #8b9096;
+  background: #f2f3f5;
 }
 
 .count-badge--pinned {
-  color: var(--text-tertiary);
-  background: #eef0f2;
+  color: #8b9096;
+  background: #f2f3f5;
 }
 
 .col-actions {
@@ -747,7 +761,7 @@ body {
 .tab-row {
   display: flex;
   align-items: center;
-  padding: 7px 8px;
+  padding: 9px 8px;
   gap: 10px;
   border-radius: var(--radius-sm);
   transition: background var(--transition);
@@ -760,15 +774,15 @@ body {
 }
 
 .tab-favicon {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   border-radius: 3px;
   object-fit: contain;
 }
 .tab-favicon-placeholder {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   background: var(--bg-active);
   border-radius: 3px;
@@ -795,7 +809,7 @@ body {
   color: var(--text);
   cursor: pointer;
   transition: color var(--transition);
-  line-height: 1.3;
+  line-height: 1.4;
 }
 .tab-title:hover {
   color: var(--accent);
@@ -807,7 +821,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.3;
+  line-height: 1.4;
 }
 
 .tab-meta {
@@ -815,12 +829,16 @@ body {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
+  min-width: 110px;
+  justify-content: flex-end;
 }
 
 .tab-date {
   font-size: 12px;
   color: var(--text-tertiary);
   white-space: nowrap;
+  text-align: right;
 }
 
 /* ── Tags ────────────────────────────────────────────── */
@@ -915,8 +933,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: none;
   color: var(--text-tertiary);
