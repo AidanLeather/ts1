@@ -222,6 +222,16 @@ body {
   color: var(--sidebar-count-text);
   line-height: 1;
   flex-shrink: 0;
+  transition: opacity var(--transition);
+}
+.sidebar-col-item:hover .sidebar-col-count {
+  opacity: 0;
+}
+.sidebar-col-item:hover .sidebar-col-count {
+  opacity: 0;
+}
+.sidebar-col-item:hover .sidebar-col-count {
+  display: none;
 }
 .sidebar-col-item:hover .sidebar-col-count {
   display: none;
@@ -626,7 +636,7 @@ body {
 
 /* ── Collection block ────────────────────────────────── */
 .collection-block {
-  margin-bottom: 4px;
+  margin-bottom: 10px;
 }
 
 .collection-section {
@@ -634,7 +644,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
