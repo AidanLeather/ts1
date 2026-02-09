@@ -438,13 +438,15 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
     : '';
 
+  const nameClass = col.autoTitleType === 'timeOfDay'
+    ? 'collection-name auto-named'
+    : 'collection-name user-named';
   const header = document.createElement('div');
   header.className = `collection-header${collapsible ? '' : ' collection-header--single'}`;
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon">${arrow}</span>` : '<span class="collapse-icon placeholder"></span>'}
-    <span class="collection-name">${escHtml(col.name)}</span>
+    <span class="${nameClass}">${escHtml(col.name)}</span>
     <span class="collection-tab-count"></span>
-    <span class="collection-spacer"></span>
     ${readOnly ? '' : `
     <div class="col-actions">
       <button class="icon-btn restore-all-btn" title="Restore all">
@@ -775,9 +777,13 @@ function updateSidebar() {
 
   const list = $('#sidebar-collections');
   list.innerHTML = '';
+  const systemList = $('#sidebar-system');
+  if (systemList) systemList.innerHTML = '';
 
-  const pinned = state.collections.filter((c) => c.isPinned);
-  const unpinned = state.collections.filter((c) => !c.isPinned);
+  const isUnsorted = (col) => col.name === 'Unsorted';
+  const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c));
+  const unpinned = state.collections.filter((c) => !c.isPinned && !isUnsorted(c));
+  const unsorted = state.collections.find(isUnsorted);
 
   const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
@@ -808,6 +814,10 @@ function updateSidebar() {
     for (const col of unpinned) {
       list.appendChild(buildSidebarItem(col));
     }
+  }
+
+  if (unsorted && systemList) {
+    systemList.appendChild(buildSidebarItem(unsorted));
   }
 }
 
@@ -1276,9 +1286,18 @@ function relativeDate(ts) {
 function shortUrl(url) {
   try {
     const u = new URL(url);
-    const p = u.pathname !== '/' ? u.pathname : '';
-    const s = u.hostname + p;
-    return s.length > 55 ? s.slice(0, 52) + '\u2026' : s;
+    const maxLen = 40;
+    const parts = u.pathname.split('/').filter(Boolean);
+    const host = u.hostname;
+    let display = host;
+    if (parts.length === 1) {
+      display = `${host}/${parts[0]}`;
+    } else if (parts.length > 1) {
+      display = `${host}/\u2026/${parts[parts.length - 1]}`;
+    }
+    if (display.length <= maxLen) return display;
+    const keep = Math.max(10, Math.floor((maxLen - 1) / 2));
+    return `${display.slice(0, keep)}\u2026${display.slice(-keep)}`;
   } catch { return url; }
 }
 
