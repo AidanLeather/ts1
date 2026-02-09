@@ -154,6 +154,10 @@ function bindEvents() {
     });
   });
 
+  $('#clear-search-history')?.addEventListener('click', async () => {
+    await clearRecentSearches();
+  });
+
   // Save open tabs (sidebar link)
   $('#save-tabs-btn').addEventListener('click', saveAllTabs);
 
@@ -429,43 +433,42 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   const countText = totalActive === 1 ? '1 tab' : `${totalActive} tabs`;
 
+  const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
+  const timestampHtml = preciseTimestamp
+    ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
+    : '';
+
+  const header = document.createElement('div');
+  header.className = 'collection-header';
+  header.innerHTML = `
+    ${collapsible ? `<span class="collapse-icon">${arrow}</span>` : '<span class="collapse-icon placeholder"></span>'}
+    <span class="collection-name">${escHtml(col.name)}</span>
+    <span class="collection-tab-count"></span>
+    <span class="collection-spacer"></span>
+    ${readOnly ? '' : `
+    <div class="col-actions">
+      <button class="icon-btn restore-all-btn" title="Restore all">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn rename-btn" title="Rename">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn export-btn" title="Export as Markdown">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 9V11H10V9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2V8M6.5 8L4 5.5M6.5 8L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn danger delete-btn" title="Delete">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>`}
+    ${timestampHtml}
+  `;
+  const countBadge = buildCountBadge(countText, col.isPinned ? 'pinned' : null);
+  if (countBadge) {
+    header.querySelector('.collection-tab-count')?.appendChild(countBadge);
+  }
+
   if (collapsible) {
-    // Collapsible header for "all" view
-    const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
-    const timestampHtml = preciseTimestamp
-      ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
-      : '';
-
-    const header = document.createElement('div');
-    header.className = 'collection-header';
-    header.innerHTML = `
-      <span class="collapse-icon">${arrow}</span>
-      <span class="collection-name">${escHtml(col.name)}</span>
-      <span class="collection-tab-count">(${countText})</span>
-      <span class="collection-spacer"></span>
-      ${timestampHtml}
-      ${readOnly ? '' : `
-      <div class="col-actions">
-        <button class="icon-btn restore-all-btn" title="Restore all">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="icon-btn rename-btn" title="Rename">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="icon-btn export-btn" title="Export as Markdown">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 9V11H10V9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2V8M6.5 8L4 5.5M6.5 8L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="icon-btn danger delete-btn" title="Delete">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        </button>
-      </div>`}
-    `;
-    const countBadge = buildCountBadge(countText, col.isPinned ? 'pinned' : null);
-    if (countBadge) {
-      header.querySelector('.collection-tab-count')?.appendChild(countBadge);
-    }
-
     const accordionState = getAccordionState();
     if (accordionState[col.id]) {
       div.classList.add('collapsed');
@@ -479,10 +482,10 @@ function buildCollectionBlock(col, readOnly, collapsible) {
         [col.id]: div.classList.contains('collapsed'),
       });
     });
-
-    bindCollectionActions(header, col, activeTabs, div);
-    div.appendChild(header);
   }
+
+  bindCollectionActions(header, col, activeTabs, div);
+  div.appendChild(header);
 
   // Tab list body
   const body = document.createElement('div');
@@ -776,8 +779,6 @@ function updateSidebar() {
 
   const pinned = state.collections.filter((c) => c.isPinned);
   const unpinned = state.collections.filter((c) => !c.isPinned);
-  const recent = [];
-  const archived = [];
 
   const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
@@ -799,7 +800,6 @@ function updateSidebar() {
   };
 
   addSidebarSection('Pinned', pinned, 'No pinned sessions yet.');
-  addSidebarSection('Recents', recent, 'No recent sessions yet.');
 
   if (unpinned.length > 0) {
     const label = document.createElement('div');
@@ -810,8 +810,6 @@ function updateSidebar() {
       list.appendChild(buildSidebarItem(col));
     }
   }
-
-  addSidebarSection('Archive', archived, 'No archived sessions yet.');
 }
 
 function buildSidebarItem(col) {
@@ -1109,6 +1107,27 @@ async function saveRecentSearch(query) {
   updateSearchPanel();
 }
 
+async function removeRecentSearch(query) {
+  const next = state.recentSearches.filter((q) => q !== query);
+  state.recentSearches = next;
+  try {
+    await chrome.storage.local.set({ [RECENT_SEARCHES_KEY]: next });
+  } catch (err) {
+    console.error('[TabStash] remove recent search error:', err);
+  }
+  updateSearchPanel();
+}
+
+async function clearRecentSearches() {
+  state.recentSearches = [];
+  try {
+    await chrome.storage.local.set({ [RECENT_SEARCHES_KEY]: [] });
+  } catch (err) {
+    console.error('[TabStash] clear recent searches error:', err);
+  }
+  updateSearchPanel();
+}
+
 function openSearchPanel() {
   loadRecentSearches().then(() => updateSearchPanel());
   $('#search-panel').classList.remove('hidden');
@@ -1127,31 +1146,53 @@ function updateSearchPanel() {
 
 function renderRecentSearches() {
   const container = $('#recent-searches');
+  const clearBtn = $('#clear-search-history');
   container.innerHTML = '';
   if (!state.recentSearches.length) {
     container.innerHTML = '<div class="recent-empty">No recent searches yet.</div>';
+    clearBtn?.classList.add('hidden');
     return;
   }
 
   for (const query of state.recentSearches) {
-    const btn = document.createElement('button');
-    btn.className = 'recent-search-item';
-    btn.type = 'button';
-    btn.textContent = query;
-    btn.addEventListener('click', () => {
+    const item = document.createElement('div');
+    item.className = 'recent-search-item';
+    item.tabIndex = 0;
+    item.innerHTML = `
+      <span class="recent-search-text">${escHtml(query)}</span>
+      <span class="recent-search-actions">
+        <button class="recent-search-delete" title="Remove search" type="button">&times;</button>
+      </span>
+    `;
+    item.addEventListener('click', () => {
       state.searchQuery = query;
       $('#search').value = query;
       render();
       closeSearchPanel();
     });
-    container.appendChild(btn);
+    item.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        item.click();
+      }
+    });
+    item.querySelector('.recent-search-delete')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeRecentSearch(query);
+    });
+    container.appendChild(item);
   }
+  clearBtn?.classList.remove('hidden');
 }
 
 function updateFilterChips() {
   const pinnedChip = $('.search-chip[data-filter="pinned"]');
   const last7Chip = $('.search-chip[data-filter="last7"]');
   const domainChip = $('.search-chip[data-filter="domain"]');
+
+  if (!pinnedChip || !last7Chip || !domainChip) {
+    return;
+  }
 
   pinnedChip.classList.toggle('active', state.searchFilters.pinnedOnly);
   last7Chip.classList.toggle('active', state.searchFilters.last7Days);
@@ -1207,8 +1248,8 @@ function showToast(msg) {
 
 // ── Helpers ────────────────────────────────────────────
 function formatCollectionName(d = new Date()) {
-  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return `${weekdays[d.getDay()]} ${timeOfDayLabel(d)}`;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()} ${timeOfDayLabel(d)}`;
 }
 
 function timeOfDayLabel(date) {
