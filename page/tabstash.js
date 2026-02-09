@@ -19,7 +19,15 @@ let state = {
   settings: {},
   currentView: 'all',
   searchQuery: '',
+  recentSearches: [],
+  searchFilters: {
+    pinnedOnly: false,
+    last7Days: false,
+    domain: '',
+  },
 };
+
+const RECENT_SEARCHES_KEY = 'recentSearches';
 
 function getAccordionState() {
   return state.settings.accordionState || {};
@@ -37,6 +45,7 @@ async function setAccordionState(nextState) {
 // ── Init ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
+  await loadRecentSearches();
   render();
   bindEvents();
   bindKeyboard();
@@ -94,6 +103,56 @@ function bindEvents() {
     state.searchQuery = e.target.value;
     render();
   });
+  $('#search').addEventListener('focus', () => {
+    openSearchPanel();
+  });
+  $('#search').addEventListener('blur', () => {
+    setTimeout(() => {
+      if (!document.activeElement || !document.activeElement.closest('.search-bar')) {
+        closeSearchPanel();
+      }
+    }, 120);
+    if (state.searchQuery.trim()) {
+      saveRecentSearch(state.searchQuery);
+    }
+  });
+  $('#search').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (state.searchQuery.trim()) {
+        saveRecentSearch(state.searchQuery);
+      }
+      $('#search').blur();
+    }
+  });
+
+  $('#search-panel').addEventListener('mousedown', (e) => {
+    e.preventDefault();
+  });
+
+  $$('.search-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const filter = chip.dataset.filter;
+      if (filter === 'pinned') {
+        state.searchFilters.pinnedOnly = !state.searchFilters.pinnedOnly;
+      } else if (filter === 'last7') {
+        state.searchFilters.last7Days = !state.searchFilters.last7Days;
+      } else if (filter === 'domain') {
+        if (state.searchFilters.domain) {
+          state.searchFilters.domain = '';
+        } else {
+          const domain = prompt('Filter by domain (e.g. example.com):');
+          if (domain && domain.trim()) {
+            state.searchFilters.domain = domain.trim();
+          }
+        }
+      }
+      updateSearchPanel();
+      if (state.searchQuery.trim()) {
+        render();
+      }
+    });
+  });
 
   // Save open tabs (sidebar link)
   $('#save-tabs-btn').addEventListener('click', saveAllTabs);
@@ -143,6 +202,12 @@ function bindEvents() {
   $('#expand-all-btn').addEventListener('click', async () => {
     await setAllAccordionState(false);
     render();
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-bar')) {
+      closeSearchPanel();
+    }
   });
 }
 
@@ -218,7 +283,7 @@ function render() {
 
   // Search mode
   if (state.searchQuery.trim()) {
-    const results = TabStashStorage.search(state.collections, state.searchQuery);
+    const results = TabStashStorage.search(state.collections, state.searchQuery, state.searchFilters);
     const count = results.length;
     $('#filter-text').textContent = `${count} result${count !== 1 ? 's' : ''} for "${state.searchQuery}"`;
     filterBar.classList.remove('hidden');
@@ -1018,6 +1083,83 @@ function openPalette() {
 }
 
 function closePalette() { $('#command-palette').classList.add('hidden'); }
+
+// ── Search panel ───────────────────────────────────────
+async function loadRecentSearches() {
+  try {
+    const data = await chrome.storage.local.get(RECENT_SEARCHES_KEY);
+    const items = data[RECENT_SEARCHES_KEY];
+    state.recentSearches = Array.isArray(items) ? items : [];
+  } catch (err) {
+    console.error('[TabStash] load recent searches error:', err);
+    state.recentSearches = [];
+  }
+}
+
+async function saveRecentSearch(query) {
+  const trimmed = query.trim();
+  if (!trimmed) return;
+  const next = [trimmed, ...state.recentSearches.filter((q) => q !== trimmed)].slice(0, 5);
+  state.recentSearches = next;
+  try {
+    await chrome.storage.local.set({ [RECENT_SEARCHES_KEY]: next });
+  } catch (err) {
+    console.error('[TabStash] save recent searches error:', err);
+  }
+  updateSearchPanel();
+}
+
+function openSearchPanel() {
+  loadRecentSearches().then(() => updateSearchPanel());
+  $('#search-panel').classList.remove('hidden');
+  $('.search-bar').classList.add('is-focused');
+}
+
+function closeSearchPanel() {
+  $('#search-panel').classList.add('hidden');
+  $('.search-bar').classList.remove('is-focused');
+}
+
+function updateSearchPanel() {
+  renderRecentSearches();
+  updateFilterChips();
+}
+
+function renderRecentSearches() {
+  const container = $('#recent-searches');
+  container.innerHTML = '';
+  if (!state.recentSearches.length) {
+    container.innerHTML = '<div class="recent-empty">No recent searches yet.</div>';
+    return;
+  }
+
+  for (const query of state.recentSearches) {
+    const btn = document.createElement('button');
+    btn.className = 'recent-search-item';
+    btn.type = 'button';
+    btn.textContent = query;
+    btn.addEventListener('click', () => {
+      state.searchQuery = query;
+      $('#search').value = query;
+      render();
+      closeSearchPanel();
+    });
+    container.appendChild(btn);
+  }
+}
+
+function updateFilterChips() {
+  const pinnedChip = $('.search-chip[data-filter="pinned"]');
+  const last7Chip = $('.search-chip[data-filter="last7"]');
+  const domainChip = $('.search-chip[data-filter="domain"]');
+
+  pinnedChip.classList.toggle('active', state.searchFilters.pinnedOnly);
+  last7Chip.classList.toggle('active', state.searchFilters.last7Days);
+  domainChip.classList.toggle('active', Boolean(state.searchFilters.domain));
+
+  const domainValue = $('#domain-filter-value');
+  domainValue.textContent = state.searchFilters.domain ? state.searchFilters.domain : '';
+}
 
 function renderPalette(q) {
   const container = $('#palette-results');

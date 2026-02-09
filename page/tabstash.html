@@ -54,6 +54,23 @@
           </svg>
           <input type="text" id="search" placeholder="Search tabs..." autocomplete="off" spellcheck="false">
           <kbd class="search-kbd">/</kbd>
+          <div id="search-panel" class="search-panel hidden">
+            <div class="search-panel-section">
+              <div class="search-panel-title">Recent searches</div>
+              <div id="recent-searches" class="recent-searches"></div>
+            </div>
+            <div class="search-panel-section">
+              <div class="search-panel-title">Filters</div>
+              <div class="search-chips">
+                <button class="search-chip" data-filter="pinned" type="button">Pinned only</button>
+                <button class="search-chip" data-filter="last7" type="button">Last 7 days</button>
+                <button class="search-chip" data-filter="domain" type="button">
+                  Domain
+                  <span id="domain-filter-value" class="chip-value"></span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
