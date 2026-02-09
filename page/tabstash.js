@@ -373,8 +373,7 @@ function renderCollectionView(content, empty, colId) {
 
   empty.classList.add('hidden');
   content.innerHTML = '';
-  // Single collection view: no accordion, flat list
-  content.appendChild(buildCollectionBlock(col, false, false));
+  content.appendChild(buildCollectionBlock(col, false, true));
 }
 
 function renderSearchResults(content, results) {
@@ -884,11 +883,13 @@ function buildSidebarItem(col) {
 }
 
 function updateViewHeader() {
+  const viewHeader = $('.view-header');
   const title = $('#view-title');
   const count = $('#view-count');
   const actions = $('#view-actions');
 
   if (state.searchQuery.trim()) {
+    viewHeader.classList.remove('hidden');
     title.textContent = 'Search';
     count.innerHTML = '';
     actions.classList.add('hidden');
@@ -896,6 +897,7 @@ function updateViewHeader() {
   }
 
   if (state.currentView === 'all') {
+    viewHeader.classList.remove('hidden');
     const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
     title.textContent = 'All Tabs';
     count.innerHTML = '';
@@ -904,6 +906,7 @@ function updateViewHeader() {
     }
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else {
+    viewHeader.classList.add('hidden');
     const col = state.collections.find((c) => c.id === state.currentView);
     if (col) {
       const n = col.tabs.filter((t) => !t.archived).length;
@@ -1249,15 +1252,7 @@ function showToast(msg) {
 // ── Helpers ────────────────────────────────────────────
 function formatCollectionName(d = new Date()) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()} ${timeOfDayLabel(d)}`;
-}
-
-function timeOfDayLabel(date) {
-  const hour = date.getHours();
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 21) return 'evening';
-  return 'night';
+  return `${months[d.getMonth()]} ${d.getDate()} ${TabStashTime.timeOfDayLabel(d)}`;
 }
 
 function formatPreciseTimestamp(ts) {
