@@ -21,6 +21,19 @@ let state = {
   searchQuery: '',
 };
 
+function getAccordionState() {
+  return state.settings.accordionState || {};
+}
+
+async function setAccordionState(nextState) {
+  try {
+    await TabStashStorage.saveSettings({ ...state.settings, accordionState: nextState });
+    state.settings = await TabStashStorage.getSettings();
+  } catch (err) {
+    console.error('[TabStash] save accordion state error:', err);
+  }
+}
+
 // ── Init ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
@@ -116,6 +129,16 @@ function bindEvents() {
   $('#filter-clear').addEventListener('click', () => {
     state.searchQuery = '';
     $('#search').value = '';
+    render();
+  });
+
+  // Accordion controls
+  $('#collapse-all-btn').addEventListener('click', async () => {
+    await setAllAccordionState(true);
+    render();
+  });
+  $('#expand-all-btn').addEventListener('click', async () => {
+    await setAllAccordionState(false);
     render();
   });
 }
@@ -225,8 +248,23 @@ function renderAllView(content, empty) {
   }
   empty.classList.add('hidden');
   content.innerHTML = '';
-  for (const col of state.collections) {
-    content.appendChild(buildCollectionBlock(col, false, true));
+  const pinned = state.collections.filter((c) => c.isPinned);
+  const unpinned = state.collections.filter((c) => !c.isPinned);
+
+  if (pinned.length > 0) {
+    content.appendChild(buildCollectionSectionLabel('Pinned'));
+    for (const col of pinned) {
+      content.appendChild(buildCollectionBlock(col, false, true));
+    }
+  }
+
+  if (unpinned.length > 0) {
+    if (pinned.length > 0) {
+      content.appendChild(buildCollectionSectionLabel('Collections'));
+    }
+    for (const col of unpinned) {
+      content.appendChild(buildCollectionBlock(col, false, true));
+    }
   }
 }
 
@@ -271,6 +309,21 @@ function renderSearchResults(content, results) {
   }
 }
 
+function buildCollectionSectionLabel(text) {
+  const div = document.createElement('div');
+  div.className = 'collection-section';
+  div.textContent = text;
+  return div;
+}
+
+async function setAllAccordionState(collapsed) {
+  const next = { ...getAccordionState() };
+  for (const col of state.collections) {
+    next[col.id] = collapsed;
+  }
+  await setAccordionState(next);
+}
+
 // ── Collection block ───────────────────────────────────
 function buildCollectionBlock(col, readOnly, collapsible) {
   const div = document.createElement('div');
@@ -310,9 +363,18 @@ function buildCollectionBlock(col, readOnly, collapsible) {
       </div>`}
     `;
 
-    header.addEventListener('click', (e) => {
+    const accordionState = getAccordionState();
+    if (accordionState[col.id]) {
+      div.classList.add('collapsed');
+    }
+
+    header.addEventListener('click', async (e) => {
       if (e.target.closest('.col-actions')) return;
       div.classList.toggle('collapsed');
+      await setAccordionState({
+        ...getAccordionState(),
+        [col.id]: div.classList.contains('collapsed'),
+      });
     });
 
     bindCollectionActions(header, col, activeTabs, div);
@@ -672,10 +734,12 @@ function buildSidebarItem(col) {
 function updateViewHeader() {
   const title = $('#view-title');
   const count = $('#view-count');
+  const actions = $('#view-actions');
 
   if (state.searchQuery.trim()) {
     title.textContent = 'Search';
     count.textContent = '';
+    actions.classList.add('hidden');
     return;
   }
 
@@ -683,6 +747,7 @@ function updateViewHeader() {
     const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
     title.textContent = 'All Tabs';
     count.textContent = total ? `${total} tab${total !== 1 ? 's' : ''}` : '';
+    actions.classList.toggle('hidden', state.collections.length === 0);
   } else {
     const col = state.collections.find((c) => c.id === state.currentView);
     if (col) {
@@ -693,6 +758,7 @@ function updateViewHeader() {
       title.textContent = 'Not found';
       count.textContent = '';
     }
+    actions.classList.add('hidden');
   }
 }
 

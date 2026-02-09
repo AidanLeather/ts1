@@ -381,6 +381,29 @@ body {
   color: var(--text-tertiary);
 }
 
+.view-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.view-action-btn {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.view-action-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
 /* ── Content ─────────────────────────────────────────── */
 .content {
   flex: 1;
@@ -405,6 +428,24 @@ body {
 /* ── Collection block ────────────────────────────────── */
 .collection-block {
   margin-bottom: 4px;
+}
+
+.collection-section {
+  margin: 16px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.collection-section::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
 }
 
 .collection-header {
