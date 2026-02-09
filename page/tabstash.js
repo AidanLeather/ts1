@@ -103,7 +103,7 @@ function bindEvents() {
     const name = prompt('Collection name:');
     if (name && name.trim()) {
       try {
-        const col = await TabStashStorage.addCollection(name.trim(), []);
+        const col = await TabStashStorage.addCollection(name.trim(), [], { type: 'collection' });
         await loadData();
         state.currentView = col.id;
         render();
@@ -189,7 +189,7 @@ async function saveAllTabs() {
     }
 
     const name = formatCollectionName();
-    const col = await TabStashStorage.addCollection(name, saveable);
+    const col = await TabStashStorage.addCollection(name, saveable, { type: 'stash' });
     console.log(`[TabStash] Saved ${saveable.length} tabs as "${name}"`);
     await loadData();
     render();
@@ -282,6 +282,8 @@ function renderCollectionView(content, empty, colId) {
     content.innerHTML = '';
     // Still show the add-tab form even when empty
     const wrapper = document.createElement('div');
+    const note = buildCollectionNote(col, false);
+    if (note) wrapper.appendChild(note);
     wrapper.appendChild(buildAddTabForm(col.id));
     content.appendChild(wrapper);
     $('#empty-title').textContent = 'Empty collection';
@@ -333,6 +335,9 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const activeTabs = col.tabs.filter((t) => !t.archived);
   const archivedTabs = col.tabs.filter((t) => t.archived);
   const totalActive = activeTabs.length;
+  const starredTabs = activeTabs.filter((t) => t.starred);
+  const unstarredTabs = activeTabs.filter((t) => !t.starred);
+  const orderedActiveTabs = [...starredTabs, ...unstarredTabs];
 
   const countText = totalActive === 1 ? '1 tab' : `${totalActive} tabs`;
 
@@ -345,6 +350,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     header.innerHTML = `
       <span class="collapse-icon">${arrow}</span>
       <span class="collection-name">${escHtml(col.name)}</span>
+      <span class="collection-type-badge">${escHtml(collectionTypeLabel(col))}</span>
       <span class="collection-tab-count">(${countText})</span>
       ${readOnly ? '' : `
       <div class="col-actions">
@@ -381,10 +387,13 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     div.appendChild(header);
   }
 
+  const note = buildCollectionNote(col, readOnly);
+  if (note) div.appendChild(note);
+
   // Tab list body
   const body = document.createElement('div');
   body.className = 'collection-body';
-  for (const tab of [...activeTabs, ...archivedTabs]) {
+  for (const tab of [...orderedActiveTabs, ...archivedTabs]) {
     body.appendChild(buildTabRow(tab, col.id));
   }
 
@@ -395,6 +404,45 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   div.appendChild(body);
   return div;
+}
+
+function collectionTypeLabel(col) {
+  return col.type === 'stash' ? 'stash' : 'collection';
+}
+
+function buildCollectionNote(col, readOnly) {
+  if (readOnly) return null;
+  const wrap = document.createElement('div');
+  wrap.className = 'collection-note';
+
+  const input = document.createElement('textarea');
+  input.className = 'collection-note-input';
+  input.placeholder = 'Add a note…';
+  input.rows = 1;
+  input.value = col.notes || '';
+
+  const saveNote = async () => {
+    const next = input.value.trim();
+    if (next === (col.notes || '')) return;
+    try {
+      await TabStashStorage.updateNotes(col.id, next);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[TabStash] updateNotes error:', err);
+    }
+  };
+
+  input.addEventListener('blur', saveNote);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      input.blur();
+    }
+  });
+
+  wrap.appendChild(input);
+  return wrap;
 }
 
 function bindCollectionActions(header, col, activeTabs, blockEl) {
@@ -541,6 +589,9 @@ function buildTabRow(tab, collectionId) {
       <div class="tab-url">${escHtml(shortUrl(tab.url))}</div>
     </div>
     <div class="tab-meta">
+      <button class="tab-star${tab.starred ? ' starred' : ''}" title="${tab.starred ? 'Unstar' : 'Star'}" aria-pressed="${tab.starred ? 'true' : 'false'}">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1.5L8.1 4.7L11.6 5.2L9 7.7L9.6 11.2L6.5 9.5L3.4 11.2L4 7.7L1.4 5.2L4.9 4.7L6.5 1.5Z" stroke="currentColor" stroke-width="1" fill="currentColor" fill-opacity="${tab.starred ? '1' : '0'}"/></svg>
+      </button>
       <span class="tab-date">${relativeDate(tab.savedAt)}</span>
     </div>
     <div class="tab-actions">
@@ -567,6 +618,17 @@ function buildTabRow(tab, collectionId) {
   row.querySelector('.open-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
     TabStashStorage.logAction('open', { tabId: tab.id });
+  });
+
+  row.querySelector('.tab-star').addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try {
+      await TabStashStorage.toggleTabStar(tab.id);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[TabStash] toggleTabStar error:', err);
+    }
   });
 
   // Edit tab
@@ -761,11 +823,13 @@ function buildSidebarItem(col) {
 
 function updateViewHeader() {
   const title = $('#view-title');
+  const badge = $('#view-badge');
   const count = $('#view-count');
   const actions = $('#view-actions');
 
   if (state.searchQuery.trim()) {
     title.textContent = 'Search';
+    badge.classList.add('hidden');
     count.textContent = '';
     actions.classList.add('hidden');
     return;
@@ -774,6 +838,7 @@ function updateViewHeader() {
   if (state.currentView === 'all') {
     const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
     title.textContent = 'All Tabs';
+    badge.classList.add('hidden');
     count.textContent = total ? `${total} tab${total !== 1 ? 's' : ''}` : '';
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else {
@@ -781,9 +846,12 @@ function updateViewHeader() {
     if (col) {
       const n = col.tabs.filter((t) => !t.archived).length;
       title.textContent = col.name;
+      badge.textContent = collectionTypeLabel(col);
+      badge.classList.remove('hidden');
       count.textContent = n ? `(${n} tab${n !== 1 ? 's' : ''})` : '';
     } else {
       title.textContent = 'Not found';
+      badge.classList.add('hidden');
       count.textContent = '';
     }
     actions.classList.add('hidden');
@@ -911,7 +979,7 @@ const COMMANDS = [
   { label: 'New collection', action: async () => {
     const name = prompt('Collection name:');
     if (name?.trim()) {
-      const col = await TabStashStorage.addCollection(name.trim(), []);
+      const col = await TabStashStorage.addCollection(name.trim(), [], { type: 'collection' });
       await loadData(); state.currentView = col.id; render();
     }
   }},
