@@ -222,6 +222,10 @@ body {
   color: var(--sidebar-count-text);
   line-height: 1;
   flex-shrink: 0;
+  transition: opacity var(--transition);
+}
+.sidebar-col-item:hover .sidebar-col-count {
+  opacity: 0;
 }
 .sidebar-col-item:hover .sidebar-col-count {
   opacity: 0;
