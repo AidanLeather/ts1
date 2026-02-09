@@ -433,43 +433,42 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   const countText = totalActive === 1 ? '1 tab' : `${totalActive} tabs`;
 
+  const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
+  const timestampHtml = preciseTimestamp
+    ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
+    : '';
+
+  const header = document.createElement('div');
+  header.className = 'collection-header';
+  header.innerHTML = `
+    ${collapsible ? `<span class="collapse-icon">${arrow}</span>` : '<span class="collapse-icon placeholder"></span>'}
+    <span class="collection-name">${escHtml(col.name)}</span>
+    <span class="collection-tab-count"></span>
+    <span class="collection-spacer"></span>
+    ${readOnly ? '' : `
+    <div class="col-actions">
+      <button class="icon-btn restore-all-btn" title="Restore all">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn rename-btn" title="Rename">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn export-btn" title="Export as Markdown">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 9V11H10V9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2V8M6.5 8L4 5.5M6.5 8L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn danger delete-btn" title="Delete">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+      </button>
+    </div>`}
+    ${timestampHtml}
+  `;
+  const countBadge = buildCountBadge(countText, col.isPinned ? 'pinned' : null);
+  if (countBadge) {
+    header.querySelector('.collection-tab-count')?.appendChild(countBadge);
+  }
+
   if (collapsible) {
-    // Collapsible header for "all" view
-    const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
-    const timestampHtml = preciseTimestamp
-      ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
-      : '';
-
-    const header = document.createElement('div');
-    header.className = 'collection-header';
-    header.innerHTML = `
-      <span class="collapse-icon">${arrow}</span>
-      <span class="collection-name">${escHtml(col.name)}</span>
-      <span class="collection-tab-count"></span>
-      <span class="collection-spacer"></span>
-      ${readOnly ? '' : `
-      <div class="col-actions">
-        <button class="icon-btn restore-all-btn" title="Restore all">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="icon-btn rename-btn" title="Rename">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="icon-btn export-btn" title="Export as Markdown">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 9V11H10V9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2V8M6.5 8L4 5.5M6.5 8L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="icon-btn danger delete-btn" title="Delete">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-        </button>
-      </div>`}
-      ${timestampHtml}
-    `;
-    const countBadge = buildCountBadge(countText, col.isPinned ? 'pinned' : null);
-    if (countBadge) {
-      header.querySelector('.collection-tab-count')?.appendChild(countBadge);
-    }
-
     const accordionState = getAccordionState();
     if (accordionState[col.id]) {
       div.classList.add('collapsed');
@@ -483,10 +482,10 @@ function buildCollectionBlock(col, readOnly, collapsible) {
         [col.id]: div.classList.contains('collapsed'),
       });
     });
-
-    bindCollectionActions(header, col, activeTabs, div);
-    div.appendChild(header);
   }
+
+  bindCollectionActions(header, col, activeTabs, div);
+  div.appendChild(header);
 
   // Tab list body
   const body = document.createElement('div');
@@ -1250,9 +1249,15 @@ function showToast(msg) {
 // ── Helpers ────────────────────────────────────────────
 function formatCollectionName(d = new Date()) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const hour = d.getHours();
-  const period = hour < 12 ? 'AM' : 'PM';
-  return `${months[d.getMonth()]} ${d.getDate()}, ${period}`;
+  return `${months[d.getMonth()]} ${d.getDate()} ${timeOfDayLabel(d)}`;
+}
+
+function timeOfDayLabel(date) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 17) return 'afternoon';
+  if (hour >= 17 && hour < 21) return 'evening';
+  return 'night';
 }
 
 function formatPreciseTimestamp(ts) {

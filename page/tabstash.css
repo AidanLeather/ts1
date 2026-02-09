@@ -181,8 +181,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 10px;
-  min-height: 38px;
+  padding: 8px 10px;
+  min-height: 34px;
   width: 100%;
   border: none;
   background: none;
@@ -223,6 +223,9 @@ body {
   line-height: 1;
   flex-shrink: 0;
   transition: opacity var(--transition);
+}
+.sidebar-col-item:hover .sidebar-col-count {
+  opacity: 0;
 }
 .sidebar-col-item:hover .sidebar-col-count {
   opacity: 0;
@@ -668,6 +671,9 @@ body {
   flex-shrink: 0;
   display: flex;
 }
+.collapse-icon.placeholder {
+  visibility: hidden;
+}
 .collection-block.collapsed .collapse-icon {
   transform: rotate(-90deg);
 }
@@ -711,12 +717,12 @@ body {
   font-weight: 600;
   letter-spacing: 0.2px;
   color: var(--text-tertiary);
-  background: var(--bg-active);
+  background: #eef0f2;
 }
 
 .count-badge--pinned {
-  color: var(--accent);
-  background: var(--bg-active);
+  color: var(--text-tertiary);
+  background: #eef0f2;
 }
 
 .col-actions {
