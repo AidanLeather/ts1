@@ -14,7 +14,7 @@
  * setInterval/setTimeout don't survive worker termination.
  */
 
-importScripts('../lib/storage.js');
+importScripts('../lib/time.js', '../lib/storage.js');
 
 // ── Install / update ───────────────────────────────────
 chrome.runtime.onInstalled.addListener(async (details) => {
