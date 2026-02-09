@@ -175,25 +175,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     picker.classList.remove('hidden');
   });
 
-  $('#collection-add-confirm').addEventListener('click', () =>
-    runWithSaving($('#collection-add-confirm'), async () => {
-      const tabs = await chrome.tabs.query({ currentWindow: true });
-      const active = tabs.find((t) => t.active);
-      if (!active || !isSaveableTab(active)) {
-        showStatus('No saveable active tab');
-        return;
-      }
-      const collectionId = $('#collection-select').value;
-      if (!collectionId) {
-        showStatus('Choose a collection');
-        return;
-      }
-      await TabStashStorage.addManualTab(collectionId, active.title || active.url, active.url);
-      showStatus('Added tab to collection');
-      $('#collection-picker').classList.add('hidden');
-    })
-  );
-
   $('#more-options-toggle').addEventListener('click', async () => {
     const toggle = $('#more-options-toggle');
     const panel = $('#more-options');
@@ -283,16 +264,7 @@ async function runWithSaving(btn, action) {
 }
 
 function formatName(d = new Date()) {
-  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  return `${weekdays[d.getDay()]} ${timeOfDayLabel(d)}`;
-}
-
-function timeOfDayLabel(date) {
-  const hour = date.getHours();
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 21) return 'evening';
-  return 'night';
+  return TabStashTime.formatWeekdayTimeName(d);
 }
 
 function showStatus(msg) {

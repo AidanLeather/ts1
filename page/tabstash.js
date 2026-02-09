@@ -1249,15 +1249,7 @@ function showToast(msg) {
 // ── Helpers ────────────────────────────────────────────
 function formatCollectionName(d = new Date()) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()} ${timeOfDayLabel(d)}`;
-}
-
-function timeOfDayLabel(date) {
-  const hour = date.getHours();
-  if (hour >= 5 && hour < 12) return 'morning';
-  if (hour >= 12 && hour < 17) return 'afternoon';
-  if (hour >= 17 && hour < 21) return 'evening';
-  return 'night';
+  return `${months[d.getMonth()]} ${d.getDate()} ${TabStashTime.timeOfDayLabel(d)}`;
 }
 
 function formatPreciseTimestamp(ts) {
