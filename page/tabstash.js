@@ -159,7 +159,7 @@ function bindEvents() {
   });
 
   // Save open tabs (sidebar link)
-  $('#save-tabs-btn').addEventListener('click', saveAllTabs);
+  $('#save-tabs-btn').addEventListener('click', saveAndCloseTabs);
 
   // Empty state CTA
   $('#empty-cta-btn')?.addEventListener('click', saveAllTabs);
@@ -249,12 +249,27 @@ function bindKeyboard() {
 }
 
 // ── Save all tabs ──────────────────────────────────────
+function getSaveableTabs(tabs) {
+  return tabs.filter(
+    (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')
+  );
+}
+
+async function closeTabs(tabs, pageUrl) {
+  const closeIds = tabs
+    .filter((t) => t.id && (!pageUrl || !t.url?.startsWith(pageUrl)))
+    .map((t) => t.id)
+    .filter(Boolean);
+
+  if (closeIds.length > 0) {
+    await chrome.tabs.remove(closeIds);
+  }
+}
+
 async function saveAllTabs() {
   try {
     const tabs = await chrome.tabs.query({ currentWindow: true });
-    const saveable = tabs.filter(
-      (t) => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://')
-    );
+    const saveable = getSaveableTabs(tabs);
     if (saveable.length === 0) {
       showToast('No saveable tabs');
       return;
@@ -272,6 +287,32 @@ async function saveAllTabs() {
     showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
   } catch (err) {
     console.error('[TabStash] saveAllTabs error:', err);
+    showToast('Error saving tabs');
+  }
+}
+
+async function saveAndCloseTabs() {
+  try {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const saveable = getSaveableTabs(tabs);
+    if (saveable.length === 0) {
+      showToast('No saveable tabs');
+      return;
+    }
+
+    const createdAt = Date.now();
+    const name = formatCollectionName(new Date(createdAt));
+    await TabStashStorage.addCollection(name, saveable, {
+      createdAt,
+      autoTitleType: 'timeOfDay',
+    });
+    const pageUrl = chrome.runtime.getURL('page/tabstash.html');
+    await closeTabs(tabs, pageUrl);
+    await loadData();
+    render();
+    showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
+  } catch (err) {
+    console.error('[TabStash] saveAndCloseTabs error:', err);
     showToast('Error saving tabs');
   }
 }
@@ -783,7 +824,6 @@ function updateSidebar() {
   const isUnsorted = (col) => col.name === 'Unsorted';
   const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c));
   const unpinned = state.collections.filter((c) => !c.isPinned && !isUnsorted(c));
-  const unsorted = state.collections.find(isUnsorted);
 
   const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
@@ -816,9 +856,6 @@ function updateSidebar() {
     }
   }
 
-  if (unsorted && systemList) {
-    systemList.appendChild(buildSidebarItem(unsorted));
-  }
 }
 
 function buildSidebarItem(col) {
@@ -1057,7 +1094,7 @@ function replaceWithClone(sel, handler, event) {
 
 // ── Command palette ────────────────────────────────────
 const COMMANDS = [
-  { label: 'Save open tabs', action: () => saveAllTabs() },
+  { label: 'Save session & close tabs', action: () => saveAndCloseTabs() },
   { label: 'View all tabs', action: () => { state.currentView = 'all'; render(); }},
   { label: 'New collection', action: async () => {
     const name = prompt('Collection name:');
