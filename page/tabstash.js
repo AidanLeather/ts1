@@ -818,6 +818,8 @@ function updateSidebar() {
 
   const list = $('#sidebar-collections');
   list.innerHTML = '';
+  const systemList = $('#sidebar-system');
+  if (systemList) systemList.innerHTML = '';
 
   const isUnsorted = (col) => col.name === 'Unsorted';
   const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c));

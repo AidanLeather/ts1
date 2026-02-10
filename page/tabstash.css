@@ -309,6 +309,13 @@ body {
   gap: 1px;
 }
 
+.sidebar-system {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 8px;
+}
+
 .nav-item-muted {
   color: var(--text-tertiary);
   font-weight: 400;
@@ -703,7 +710,7 @@ body {
   visibility: hidden;
 }
 .collection-block.collapsed .collapse-icon {
-  transform: rotate(-90deg);
+  transform: rotate(0deg);
 }
 
 .collection-name {
