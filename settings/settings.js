@@ -5,35 +5,19 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const settings = await WhyTabStorage.getSettings();
 
-  const archiveEnabled = document.getElementById('archive-enabled');
-  const archiveDays = document.getElementById('archive-days');
-  const daysRow = document.getElementById('days-row');
+  const showItemUrls = document.getElementById('show-item-urls');
   const exportBtn = document.getElementById('export-btn');
   const clearBtn = document.getElementById('clear-btn');
 
   // Populate
-  archiveEnabled.checked = settings.archiveEnabled;
-  archiveDays.value = settings.archiveDays;
-  daysRow.style.opacity = settings.archiveEnabled ? '1' : '0.4';
+  showItemUrls.checked = Boolean(settings.showItemUrls);
 
-  // Toggle archive
-  archiveEnabled.addEventListener('change', async () => {
-    daysRow.style.opacity = archiveEnabled.checked ? '1' : '0.4';
-    await save();
-  });
-
-  // Days input
-  archiveDays.addEventListener('change', async () => {
-    const val = parseInt(archiveDays.value, 10);
-    if (val >= 1 && val <= 365) {
-      await save();
-    }
-  });
+  showItemUrls.addEventListener('change', save);
 
   async function save() {
     await WhyTabStorage.saveSettings({
-      archiveEnabled: archiveEnabled.checked,
-      archiveDays: parseInt(archiveDays.value, 10) || 30,
+      ...settings,
+      showItemUrls: showItemUrls.checked,
     });
     showToast('Saved');
   }
