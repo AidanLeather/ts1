@@ -266,6 +266,28 @@ async function closeTabs(tabs, pageUrl) {
   }
 }
 
+
+async function saveTabsToCollection(saveable, createdAt) {
+  const baseName = formatCollectionName(new Date(createdAt));
+  const allCollections = await TabStashStorage.getCollections();
+  const duplicate = allCollections.find((c) => c.autoTitleType === 'timeOfDay' && c.name === baseName);
+
+  if (duplicate && Math.abs(createdAt - (duplicate.createdAt || createdAt)) <= (30 * 60 * 1000)) {
+    for (const tab of saveable) {
+      await TabStashStorage.addManualTab(duplicate.id, tab.title || tab.url, tab.url);
+    }
+    return { name: duplicate.name, merged: true };
+  }
+
+  const hasSameName = allCollections.some((c) => c.name === baseName);
+  const name = hasSameName ? formatCollectionNameWithTime(new Date(createdAt)) : baseName;
+  await TabStashStorage.addCollection(name, saveable, {
+    createdAt,
+    autoTitleType: hasSameName ? undefined : 'timeOfDay',
+  });
+  return { name, merged: false };
+}
+
 async function saveAllTabs() {
   try {
     const tabs = await chrome.tabs.query({ currentWindow: true });
@@ -276,12 +298,8 @@ async function saveAllTabs() {
     }
 
     const createdAt = Date.now();
-    const name = formatCollectionName(new Date(createdAt));
-    const col = await TabStashStorage.addCollection(name, saveable, {
-      createdAt,
-      autoTitleType: 'timeOfDay',
-    });
-    console.log(`[TabStash] Saved ${saveable.length} tabs as "${name}"`);
+    const result = await saveTabsToCollection(saveable, createdAt);
+    console.log(`[TabStash] Saved ${saveable.length} tabs as "${result.name}"`);
     await loadData();
     render();
     showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
@@ -301,11 +319,7 @@ async function saveAndCloseTabs() {
     }
 
     const createdAt = Date.now();
-    const name = formatCollectionName(new Date(createdAt));
-    await TabStashStorage.addCollection(name, saveable, {
-      createdAt,
-      autoTitleType: 'timeOfDay',
-    });
+    await saveTabsToCollection(saveable, createdAt);
     const pageUrl = chrome.runtime.getURL('page/tabstash.html');
     await closeTabs(tabs, pageUrl);
     await loadData();
@@ -321,6 +335,7 @@ async function saveAndCloseTabs() {
 function render() {
   updateSidebar();
   updateViewHeader();
+  updateSearchPlaceholder();
 
   const content = $('#content');
   const empty = $('#empty-state');
@@ -471,9 +486,9 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const archivedTabs = col.tabs.filter((t) => t.archived);
   const totalActive = activeTabs.length;
 
-  const countText = totalActive === 1 ? '1 tab' : `${totalActive} tabs`;
+  const countText = `(${totalActive})`;
 
-  const arrow = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3.5 4.5L6 7L8.5 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const arrow = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3.5L9 7L5 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
   const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
@@ -487,7 +502,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon">${arrow}</span>` : '<span class="collapse-icon placeholder"></span>'}
     <span class="${nameClass}">${escHtml(col.name)}</span>
-    <span class="collection-tab-count"></span>
+    <span class="collection-tab-count">${countText}</span>
     ${readOnly ? '' : `
     <div class="col-actions">
       <button class="icon-btn restore-all-btn" title="Restore all">
@@ -505,11 +520,6 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     </div>`}
     ${timestampHtml}
   `;
-  const countBadge = buildCountBadge(countText, col.isPinned ? 'pinned' : null);
-  if (countBadge) {
-    header.querySelector('.collection-tab-count')?.appendChild(countBadge);
-  }
-
   if (collapsible) {
     const accordionState = getAccordionState();
     if (accordionState[col.id]) {
@@ -676,20 +686,20 @@ function buildTabRow(tab, collectionId) {
     `<span class="tag-chip" data-tag="${escAttr(t)}">${escHtml(t)}<button class="tag-remove" title="Remove tag">\u00d7</button></span>`
   ).join('');
 
+  const showDate = shouldShowTimestamp(tab.savedAt);
   row.innerHTML = `
     ${favicon}
     <div class="tab-info">
       <div class="tab-title-row">
-        <span class="tab-title" title="${escAttr(tab.url)}">${escHtml(tab.title)}</span>
+        <span class="tab-title" data-url="${escAttr(tab.url)}">${escHtml(tab.title)}</span>
         <div class="tag-container">
           ${tagHtml}
           <button class="tag-add-btn" title="Add tag">+</button>
         </div>
       </div>
-      <div class="tab-url">${escHtml(shortUrl(tab.url))}</div>
     </div>
     <div class="tab-meta">
-      <span class="tab-date">${relativeDate(tab.savedAt)}</span>
+      ${showDate ? `<span class="tab-date">${relativeDate(tab.savedAt)}</span>` : ''}
     </div>
     <div class="tab-actions">
       <button class="icon-btn open-btn" title="Open">
@@ -712,6 +722,7 @@ function buildTabRow(tab, collectionId) {
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
     TabStashStorage.logAction('open', { tabId: tab.id });
   });
+  bindUrlTooltip(row.querySelector('.tab-title'));
   row.querySelector('.open-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
     TabStashStorage.logAction('open', { tabId: tab.id });
@@ -851,8 +862,26 @@ function updateSidebar() {
     label.className = 'sidebar-section-label';
     label.textContent = 'Collections';
     list.appendChild(label);
-    for (const col of unpinned) {
-      list.appendChild(buildSidebarItem(col));
+
+    const groups = groupCollectionsByAge(unpinned);
+    let firstGroup = true;
+    for (const [groupName, items] of groups) {
+      if (!items.length) continue;
+      if (!firstGroup) {
+        const divider = document.createElement('div');
+        divider.className = 'sidebar-date-divider';
+        list.appendChild(divider);
+      }
+      firstGroup = false;
+
+      const subLabel = document.createElement('div');
+      subLabel.className = 'sidebar-subsection-label';
+      subLabel.textContent = groupName;
+      list.appendChild(subLabel);
+
+      for (const col of items) {
+        list.appendChild(buildSidebarItem(col));
+      }
     }
   }
 
@@ -871,7 +900,7 @@ function buildSidebarItem(col) {
     ? col.tabs.filter((t) => !t.archived).length
     : 0;
   const countBadge = activeCount > 0
-    ? `<span class="sidebar-col-count${isPinned ? ' sidebar-col-count--pinned' : ''}">${activeCount}</span>`
+    ? `<span class="sidebar-col-count${isPinned ? ' sidebar-col-count--pinned' : ''}">(${activeCount})</span>`
     : '';
 
   // Hover actions: pin toggle + delete
@@ -947,10 +976,7 @@ function updateViewHeader() {
     viewHeader.classList.remove('hidden');
     const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
     title.textContent = 'All Tabs';
-    count.innerHTML = '';
-    if (total) {
-      count.appendChild(buildCountBadge(`${total} tab${total !== 1 ? 's' : ''}`));
-    }
+    count.textContent = total ? `(${total})` : '';
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else {
     viewHeader.classList.add('hidden');
@@ -958,24 +984,13 @@ function updateViewHeader() {
     if (col) {
       const n = col.tabs.filter((t) => !t.archived).length;
       title.textContent = col.name;
-      count.innerHTML = '';
-      if (n) {
-        count.appendChild(buildCountBadge(`${n} tab${n !== 1 ? 's' : ''}`));
-      }
+      count.textContent = n ? `(${n})` : '';
     } else {
       title.textContent = 'Not found';
       count.innerHTML = '';
     }
     actions.classList.add('hidden');
   }
-}
-
-function buildCountBadge(text, variant) {
-  if (!text) return null;
-  const badge = document.createElement('span');
-  badge.className = `count-badge${variant ? ` count-badge--${variant}` : ''}`;
-  badge.textContent = text;
-  return badge;
 }
 
 // ── Inline rename ──────────────────────────────────────
@@ -1194,6 +1209,55 @@ function updateSearchPanel() {
   updateFilterChips();
 }
 
+
+let urlTooltipTimer = null;
+let urlTooltipEl = null;
+
+function bindUrlTooltip(titleEl) {
+  if (!titleEl) return;
+
+  titleEl.addEventListener('mouseenter', () => {
+    clearTimeout(urlTooltipTimer);
+    urlTooltipTimer = setTimeout(() => {
+      showUrlTooltip(titleEl);
+    }, 300);
+  });
+
+  titleEl.addEventListener('mouseleave', () => {
+    clearTimeout(urlTooltipTimer);
+    hideUrlTooltip();
+  });
+}
+
+function showUrlTooltip(el) {
+  const url = el.dataset.url;
+  if (!url) return;
+  if (!urlTooltipEl) {
+    urlTooltipEl = document.createElement('div');
+    urlTooltipEl.className = 'url-tooltip';
+    document.body.appendChild(urlTooltipEl);
+  }
+
+  urlTooltipEl.textContent = url;
+  const rect = el.getBoundingClientRect();
+  urlTooltipEl.style.left = `${rect.left}px`;
+  urlTooltipEl.style.top = `${rect.bottom + 6}px`;
+  urlTooltipEl.classList.add('visible');
+}
+
+function hideUrlTooltip() {
+  if (urlTooltipEl) {
+    urlTooltipEl.classList.remove('visible');
+  }
+}
+
+function updateSearchPlaceholder() {
+  const input = $('#search');
+  if (!input) return;
+  const total = state.collections.reduce((sum, col) => sum + col.tabs.filter((t) => !t.archived).length, 0);
+  input.placeholder = `Search ${total} tabs...`;
+}
+
 function renderRecentSearches() {
   const container = $('#recent-searches');
   const clearBtn = $('#clear-search-history');
@@ -1302,6 +1366,13 @@ function formatCollectionName(d = new Date()) {
   return `${months[d.getMonth()]} ${d.getDate()} ${TabStashTime.timeOfDayLabel(d)}`;
 }
 
+function formatCollectionNameWithTime(d = new Date()) {
+  const hour = d.getHours() % 12 || 12;
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  const suffix = d.getHours() >= 12 ? 'pm' : 'am';
+  return `${formatCollectionName(d)} ${hour}:${mins}${suffix}`;
+}
+
 function formatPreciseTimestamp(ts) {
   const d = new Date(ts);
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1311,13 +1382,42 @@ function formatPreciseTimestamp(ts) {
 function relativeDate(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
+  if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d ago`;
-  return `${Math.floor(days / 30)}mo ago`;
+  if (days < 7) return `${days}d`;
+  const d = new Date(ts);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()}`;
+}
+
+function shouldShowTimestamp(ts) {
+  return (Date.now() - ts) >= 60 * 60 * 1000;
+}
+
+function groupCollectionsByAge(collections) {
+  const now = new Date();
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const yesterdayStart = dayStart - (24 * 60 * 60 * 1000);
+  const weekStart = dayStart - (7 * 24 * 60 * 60 * 1000);
+  const groups = new Map([
+    ['Today', []],
+    ['Yesterday', []],
+    ['This Week', []],
+    ['Older', []],
+  ]);
+
+  for (const col of collections) {
+    const createdAt = col.createdAt || Date.now();
+    if (createdAt >= dayStart) groups.get('Today').push(col);
+    else if (createdAt >= yesterdayStart) groups.get('Yesterday').push(col);
+    else if (createdAt >= weekStart) groups.get('This Week').push(col);
+    else groups.get('Older').push(col);
+  }
+
+  return groups;
 }
 
 function shortUrl(url) {
