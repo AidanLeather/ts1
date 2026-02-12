@@ -21,7 +21,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: "Inclusive Sans", sans-serif;
   font-size: 14px;
   color: var(--text);
   background: #fafafa;
