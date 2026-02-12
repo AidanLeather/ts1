@@ -25,6 +25,7 @@ let state = {
     last7Days: false,
     domain: '',
   },
+  pendingSidebarCollectionId: null,
 };
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
@@ -374,6 +375,7 @@ function render() {
 
   if (state.currentView === 'all') {
     renderAllView(content, empty);
+    flushPendingSidebarNavigation();
   } else {
     renderCollectionView(content, empty, state.currentView);
   }
@@ -398,9 +400,7 @@ function renderAllView(content, empty) {
   }
 
   if (unpinned.length > 0) {
-    if (pinned.length > 0) {
-      content.appendChild(buildCollectionSectionLabel('Collections'));
-    }
+    content.appendChild(buildCollectionSectionLabel('Collections', pinned.length > 0));
     for (const col of unpinned) {
       content.appendChild(buildCollectionBlock(col, false, true));
     }
@@ -461,11 +461,36 @@ function setEmptyState({ title, sub, description = '', showDescription = false, 
   }
 }
 
-function buildCollectionSectionLabel(text) {
+function buildCollectionSectionLabel(text, withBoundary = false) {
   const div = document.createElement('div');
-  div.className = 'collection-section';
+  div.className = `collection-section${withBoundary ? ' section-boundary' : ''}`;
   div.textContent = text;
   return div;
+}
+
+async function expandCollectionIfCollapsed(collectionId) {
+  const accordionState = getAccordionState();
+  if (!accordionState[collectionId]) return;
+
+  await setAccordionState({
+    ...accordionState,
+    [collectionId]: false,
+  });
+}
+
+function flushPendingSidebarNavigation() {
+  if (!state.pendingSidebarCollectionId) return;
+
+  const collectionId = state.pendingSidebarCollectionId;
+  state.pendingSidebarCollectionId = null;
+
+  const block = document.getElementById(`collection-${collectionId}`);
+  if (!block) return;
+
+  const header = block.querySelector('.collection-header');
+  block.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+  header?.classList.add('highlight');
+  setTimeout(() => header?.classList.remove('highlight'), 1000);
 }
 
 async function setAllAccordionState(collapsed) {
@@ -481,6 +506,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const div = document.createElement('div');
   div.className = 'collection-block';
   div.dataset.id = col.id;
+  div.id = `collection-${col.id}`;
 
   const activeTabs = col.tabs.filter((t) => !t.archived);
   const archivedTabs = col.tabs.filter((t) => t.archived);
@@ -488,7 +514,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   const countText = `(${totalActive})`;
 
-  const arrow = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M5 3.5L9 7L5 10.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const arrow = '›';
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
   const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
@@ -843,9 +869,12 @@ function updateSidebar() {
     list.appendChild(label);
 
     if (items.length > 0) {
-      for (const col of items) {
-        list.appendChild(buildSidebarItem(col));
-      }
+      items.forEach((col, index) => {
+        list.appendChild(buildSidebarItem(col, {
+          dayBoundary: false,
+          sectionStart: index === 0,
+        }));
+      });
       return;
     }
 
@@ -863,34 +892,24 @@ function updateSidebar() {
     label.textContent = 'Collections';
     list.appendChild(label);
 
-    const groups = groupCollectionsByAge(unpinned);
-    let firstGroup = true;
-    for (const [groupName, items] of groups) {
-      if (!items.length) continue;
-      if (!firstGroup) {
-        const divider = document.createElement('div');
-        divider.className = 'sidebar-date-divider';
-        list.appendChild(divider);
-      }
-      firstGroup = false;
-
-      const subLabel = document.createElement('div');
-      subLabel.className = 'sidebar-subsection-label';
-      subLabel.textContent = groupName;
-      list.appendChild(subLabel);
-
-      for (const col of items) {
-        list.appendChild(buildSidebarItem(col));
-      }
-    }
+    let previousDayKey = '';
+    unpinned.forEach((col, index) => {
+      const dayKey = getCollectionDayKey(col);
+      const dayBoundary = index > 0 && dayKey !== previousDayKey;
+      list.appendChild(buildSidebarItem(col, {
+        dayBoundary,
+        sectionStart: index === 0,
+      }));
+      previousDayKey = dayKey;
+    });
   }
 
 }
 
-function buildSidebarItem(col) {
+function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {}) {
   const btn = document.createElement('button');
   const isPinned = Boolean(col.isPinned);
-  btn.className = `sidebar-col-item sidebar-col-item--${isPinned ? 'pinned' : 'standard'}${state.currentView === col.id ? ' active' : ''}`;
+  btn.className = `sidebar-col-item sidebar-col-item--${isPinned ? 'pinned' : 'standard'}${dayBoundary ? ' day-boundary' : ''}${sectionStart ? ' section-start' : ''}${state.currentView === col.id ? ' active' : ''}`;
 
   const pinSvg = isPinned
     ? '<svg class="sidebar-pin-icon" width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
@@ -920,11 +939,13 @@ function buildSidebarItem(col) {
     </span>
   `;
 
-  btn.addEventListener('click', (e) => {
+  btn.addEventListener('click', async (e) => {
     if (e.target.closest('.sidebar-col-actions')) return;
-    state.currentView = col.id;
+    state.currentView = 'all';
     state.searchQuery = '';
     $('#search').value = '';
+    await expandCollectionIfCollapsed(col.id);
+    state.pendingSidebarCollectionId = col.id;
     render();
   });
 
@@ -1397,27 +1418,10 @@ function shouldShowTimestamp(ts) {
   return (Date.now() - ts) >= 60 * 60 * 1000;
 }
 
-function groupCollectionsByAge(collections) {
-  const now = new Date();
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  const yesterdayStart = dayStart - (24 * 60 * 60 * 1000);
-  const weekStart = dayStart - (7 * 24 * 60 * 60 * 1000);
-  const groups = new Map([
-    ['Today', []],
-    ['Yesterday', []],
-    ['This Week', []],
-    ['Older', []],
-  ]);
-
-  for (const col of collections) {
-    const createdAt = col.createdAt || Date.now();
-    if (createdAt >= dayStart) groups.get('Today').push(col);
-    else if (createdAt >= yesterdayStart) groups.get('Yesterday').push(col);
-    else if (createdAt >= weekStart) groups.get('This Week').push(col);
-    else groups.get('Older').push(col);
-  }
-
-  return groups;
+function getCollectionDayKey(col) {
+  const createdAt = col.createdAt || 0;
+  const date = new Date(createdAt);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
 function shortUrl(url) {
