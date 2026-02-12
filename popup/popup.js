@@ -1,14 +1,14 @@
 /**
- * TabStash – Popup (quick launcher)
+ * WhyTab – Popup (quick launcher)
  *
  * Actions:
- *   1. Save session & close tabs (primary) – save, close, navigate to TabStash
+ *   1. Save & close tabs (primary) – save, close, navigate to WhyTab
  *   2. Save this tab – save active tab as a new collection
  *   3. Add this tab to a collection – add active tab to an existing collection
  *   4. More options accordion:
  *      - Save & close tabs to the left/right
  *      - Save all tabs (don’t close)
- *   5. Open TabStash – open full management page
+ *   5. Open WhyTab – open full management page
  *
  * Reliability:
  *   - Double-click guard on both save buttons
@@ -34,22 +34,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      console.log(`[TabStash popup] Saving ${saveable.length} tabs...`);
+      console.log(`[WhyTab popup] Saving ${saveable.length} tabs...`);
 
       const createdAt = Date.now();
       const name = formatName(new Date(createdAt));
-      const col = await TabStashStorage.addCollection(name, saveable, {
+      const col = await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
-      console.log(`[TabStash popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
+      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
       await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
 
       try {
         await chrome.runtime.sendMessage({ action: 'openFullPage' });
       } catch (err) {
-        console.warn('[TabStash popup] Error opening full page:', err);
+        console.warn('[WhyTab popup] Error opening full page:', err);
       }
 
       window.close();
@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const createdAt = Date.now();
       const name = `${formatName(new Date(createdAt))} \u00b7 Left`;
-      await TabStashStorage.addCollection(name, saveable, {
+      await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
@@ -96,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const createdAt = Date.now();
       const name = `${formatName(new Date(createdAt))} \u00b7 Right`;
-      await TabStashStorage.addCollection(name, saveable, {
+      await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
@@ -116,15 +116,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      console.log(`[TabStash popup] Saving ${saveable.length} tabs (keep open)...`);
+      console.log(`[WhyTab popup] Saving ${saveable.length} tabs (keep open)...`);
 
       const createdAt = Date.now();
       const name = formatName(new Date(createdAt));
-      const col = await TabStashStorage.addCollection(name, saveable, {
+      const col = await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
-      console.log(`[TabStash popup] Saved collection "${name}" (${col.id})`);
+      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id})`);
 
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
     })
@@ -145,7 +145,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const options = active.title?.trim()
         ? {}
         : { createdAt, autoTitleType: 'timeOfDay' };
-      await TabStashStorage.addCollection(name, [active], options);
+      await WhyTabStorage.addCollection(name, [active], options);
       showStatus('Saved this tab');
     })
   );
@@ -158,12 +158,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    const collections = await TabStashStorage.getCollections();
+    const collections = await WhyTabStorage.getCollections();
     if (!collections.length) {
       showStatus('No collections yet');
       return;
     }
-    const sorted = TabStashStorage.sortCollections(collections);
+    const sorted = WhyTabStorage.sortCollections(collections);
     const select = $('#collection-select');
     select.innerHTML = '';
     for (const col of sorted) {
@@ -197,16 +197,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         showStatus('Choose a collection');
         return;
       }
-      await TabStashStorage.addManualTab(collectionId, active.title || active.url, active.url);
+      await WhyTabStorage.addManualTab(collectionId, active.title || active.url, active.url);
       showStatus('Added tab to collection');
       $('#collection-picker').classList.add('hidden');
     })
   );
 
-  // ── Tertiary: Open TabStash ───────────────────────────
+  // ── Tertiary: Open WhyTab ───────────────────────────
   $('#open-btn').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'openFullPage' }).catch((err) => {
-      console.warn('[TabStash popup] Error opening full page:', err);
+      console.warn('[WhyTab popup] Error opening full page:', err);
     });
     window.close();
   });
@@ -219,7 +219,7 @@ async function initAccordionState() {
     $('#more-options-toggle').setAttribute('aria-expanded', String(isOpen));
     $('#more-options').classList.toggle('hidden', !isOpen);
   } catch (err) {
-    console.warn('[TabStash popup] Error loading accordion state:', err);
+    console.warn('[WhyTab popup] Error loading accordion state:', err);
   }
 }
 
@@ -240,9 +240,9 @@ async function closeTabs(tabs) {
   if (closeIds.length > 0) {
     try {
       await chrome.tabs.remove(closeIds);
-      console.log(`[TabStash popup] Closed ${closeIds.length} tabs`);
+      console.log(`[WhyTab popup] Closed ${closeIds.length} tabs`);
     } catch (err) {
-      console.warn('[TabStash popup] Error closing tabs:', err);
+      console.warn('[WhyTab popup] Error closing tabs:', err);
     }
   }
 }
@@ -255,7 +255,7 @@ async function runWithSaving(btn, action) {
   try {
     await action();
   } catch (err) {
-    console.error('[TabStash popup] Action failed:', err);
+    console.error('[WhyTab popup] Action failed:', err);
     showStatus('Error performing action');
   } finally {
     if (btn) btn.disabled = false;
@@ -264,7 +264,7 @@ async function runWithSaving(btn, action) {
 }
 
 function formatName(d = new Date()) {
-  return TabStashTime.formatWeekdayTimeName(d);
+  return WhyTabTime.formatWeekdayTimeName(d);
 }
 
 function showStatus(msg) {

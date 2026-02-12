@@ -1,9 +1,9 @@
 /**
- * TabStash – Settings page script
+ * WhyTab – Settings page script
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-  const settings = await TabStashStorage.getSettings();
+  const settings = await WhyTabStorage.getSettings();
 
   const archiveEnabled = document.getElementById('archive-enabled');
   const archiveDays = document.getElementById('archive-days');
@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   async function save() {
-    await TabStashStorage.saveSettings({
+    await WhyTabStorage.saveSettings({
       archiveEnabled: archiveEnabled.checked,
       archiveDays: parseInt(archiveDays.value, 10) || 30,
     });
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Export
   exportBtn.addEventListener('click', async () => {
-    const data = await TabStashStorage.getAll();
+    const data = await WhyTabStorage.getAll();
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

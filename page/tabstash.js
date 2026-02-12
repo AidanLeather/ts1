@@ -1,5 +1,5 @@
 /**
- * TabStash – Full-page management UI
+ * WhyTab – Full-page management UI
  *
  * Architecture:
  *   - State from chrome.storage.local via lib/storage.js
@@ -44,10 +44,10 @@ function getAccordionState() {
 
 async function setAccordionState(nextState) {
   try {
-    await TabStashStorage.saveSettings({ ...state.settings, accordionState: nextState });
-    state.settings = await TabStashStorage.getSettings();
+    await WhyTabStorage.saveSettings({ ...state.settings, accordionState: nextState });
+    state.settings = await WhyTabStorage.getSettings();
   } catch (err) {
-    console.error('[TabStash] save accordion state error:', err);
+    console.error('[WhyTab] save accordion state error:', err);
   }
 }
 
@@ -59,18 +59,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   bindKeyboard();
   bindStorageListener();
-  console.log('[TabStash] Page loaded, listening for storage changes');
+  console.log('[WhyTab] Page loaded, listening for storage changes');
 });
 
 async function loadData() {
   try {
-    const data = await TabStashStorage.getAll();
-    state.collections = TabStashStorage.sortCollections(data.collections);
+    const data = await WhyTabStorage.getAll();
+    state.collections = WhyTabStorage.sortCollections(data.collections);
     state.urlIndex = data.urlIndex;
     state.settings = data.settings;
-    console.log(`[TabStash] Loaded ${state.collections.length} collections`);
+    console.log(`[WhyTab] Loaded ${state.collections.length} collections`);
   } catch (err) {
-    console.error('[TabStash] loadData error:', err);
+    console.error('[WhyTab] loadData error:', err);
   }
 }
 
@@ -79,7 +79,7 @@ function bindStorageListener() {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return;
     if (changes.collections || changes.urlIndex || changes.settings) {
-      console.log('[TabStash] Storage changed, refreshing...');
+      console.log('[WhyTab] Storage changed, refreshing...');
       loadData().then(() => render());
     }
   });
@@ -114,6 +114,12 @@ function bindEvents() {
   $('#search').addEventListener('input', (e) => {
     state.searchQuery = e.target.value;
     render();
+  });
+  $('#search-clear-btn')?.addEventListener('click', () => {
+    state.searchQuery = '';
+    $('#search').value = '';
+    render();
+    $('#search').focus();
   });
   $('#search').addEventListener('focus', () => {
     openSearchPanel();
@@ -181,12 +187,12 @@ function bindEvents() {
     const name = prompt('Collection name:');
     if (name && name.trim()) {
       try {
-        const col = await TabStashStorage.addCollection(name.trim(), []);
+        const col = await WhyTabStorage.addCollection(name.trim(), []);
         await loadData();
         state.currentView = col.id;
         render();
       } catch (err) {
-        console.error('[TabStash] New collection error:', err);
+        console.error('[WhyTab] New collection error:', err);
       }
     }
   });
@@ -289,19 +295,19 @@ async function closeTabs(tabs, pageUrl) {
 
 async function saveTabsToCollection(saveable, createdAt) {
   const baseName = formatCollectionName(new Date(createdAt));
-  const allCollections = await TabStashStorage.getCollections();
+  const allCollections = await WhyTabStorage.getCollections();
   const duplicate = allCollections.find((c) => c.autoTitleType === 'timeOfDay' && c.name === baseName);
 
   if (duplicate && Math.abs(createdAt - (duplicate.createdAt || createdAt)) <= (30 * 60 * 1000)) {
     for (const tab of saveable) {
-      await TabStashStorage.addManualTab(duplicate.id, tab.title || tab.url, tab.url);
+      await WhyTabStorage.addManualTab(duplicate.id, tab.title || tab.url, tab.url);
     }
     return { name: duplicate.name, merged: true };
   }
 
   const hasSameName = allCollections.some((c) => c.name === baseName);
   const name = hasSameName ? formatCollectionNameWithTime(new Date(createdAt)) : baseName;
-  await TabStashStorage.addCollection(name, saveable, {
+  await WhyTabStorage.addCollection(name, saveable, {
     createdAt,
     autoTitleType: hasSameName ? undefined : 'timeOfDay',
   });
@@ -319,12 +325,12 @@ async function saveAllTabs() {
 
     const createdAt = Date.now();
     const result = await saveTabsToCollection(saveable, createdAt);
-    console.log(`[TabStash] Saved ${saveable.length} tabs as "${result.name}"`);
+    console.log(`[WhyTab] Saved ${saveable.length} tabs as "${result.name}"`);
     await loadData();
     render();
     showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
   } catch (err) {
-    console.error('[TabStash] saveAllTabs error:', err);
+    console.error('[WhyTab] saveAllTabs error:', err);
     showToast('Error saving tabs');
   }
 }
@@ -346,7 +352,7 @@ async function saveAndCloseTabs() {
     render();
     showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
   } catch (err) {
-    console.error('[TabStash] saveAndCloseTabs error:', err);
+    console.error('[WhyTab] saveAndCloseTabs error:', err);
     showToast('Error saving tabs');
   }
 }
@@ -356,6 +362,7 @@ function render() {
   updateSidebar();
   updateViewHeader();
   updateSearchPlaceholder();
+  $('#search-clear-btn')?.classList.toggle('hidden', !state.searchQuery.trim());
 
   const content = $('#content');
   const empty = $('#empty-state');
@@ -363,7 +370,7 @@ function render() {
 
   // Search mode
   if (state.searchQuery.trim()) {
-    const results = TabStashStorage.search(state.collections, state.searchQuery, state.searchFilters);
+    const results = WhyTabStorage.search(state.collections, state.searchQuery, state.searchFilters);
     const count = results.length;
     $('#filter-text').textContent = `${count} result${count !== 1 ? 's' : ''} for "${state.searchQuery}"`;
     filterBar.classList.remove('hidden');
@@ -386,7 +393,7 @@ function render() {
   filterBar.classList.add('hidden');
   setEmptyState({
     title: 'Save your first session',
-    description: 'TabStash turns your open tabs into saved sessions you can revisit anytime.',
+    description: 'WhyTab turns your open tabs into saved sessions you can revisit anytime.',
     sub: 'Use the button below or click "Save open tabs" in the sidebar.',
     showDescription: true,
     showCta: true,
@@ -444,7 +451,7 @@ async function reorderCollectionsWithinGroup(isPinned, sourceId, targetId) {
 
   const pinnedIds = isPinned ? nextGroup : getCollectionIdsByPinned(true);
   const unpinnedIds = isPinned ? getCollectionIdsByPinned(false) : nextGroup;
-  await TabStashStorage.reorderCollections([...pinnedIds, ...unpinnedIds]);
+  await WhyTabStorage.reorderCollections([...pinnedIds, ...unpinnedIds]);
   await loadData();
   render();
 }
@@ -462,7 +469,7 @@ async function reorderTabsInCollection(collectionId, sourceTabId, targetTabId) {
   const next = [...tabIds];
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
-  await TabStashStorage.reorderTabs(collectionId, next);
+  await WhyTabStorage.reorderTabs(collectionId, next);
   await loadData();
   render();
 }
@@ -680,10 +687,10 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
     e.stopPropagation();
     for (const t of activeTabs) {
       chrome.tabs.create({ url: t.url, active: false }).catch((err) => {
-        console.warn('[TabStash] Error opening tab:', err);
+        console.warn('[WhyTab] Error opening tab:', err);
       });
     }
-    TabStashStorage.logAction('open', { collectionId: col.id, tabCount: activeTabs.length });
+    WhyTabStorage.logAction('open', { collectionId: col.id, tabCount: activeTabs.length });
     showToast(`Opened ${activeTabs.length} tab${activeTabs.length !== 1 ? 's' : ''}`);
   });
 
@@ -695,11 +702,11 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
   header.querySelector('.pin-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
     try {
-      await TabStashStorage.togglePin(col.id);
+      await WhyTabStorage.togglePin(col.id);
       await loadData();
       render();
     } catch (err) {
-      console.error('[TabStash] togglePin error:', err);
+      console.error('[WhyTab] togglePin error:', err);
     }
   });
 
@@ -707,12 +714,12 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
     e.stopPropagation();
     if (confirm(`Delete "${col.name}"? This can't be undone.`)) {
       try {
-        await TabStashStorage.removeCollection(col.id);
+        await WhyTabStorage.removeCollection(col.id);
         if (state.currentView === col.id) state.currentView = 'all';
         await loadData();
         render();
       } catch (err) {
-        console.error('[TabStash] Delete collection error:', err);
+        console.error('[WhyTab] Delete collection error:', err);
       }
     }
   });
@@ -766,8 +773,8 @@ function buildAddTabForm(collectionId) {
     const finalUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
 
     try {
-      await TabStashStorage.addManualTab(collectionId, title || finalUrl, finalUrl);
-      console.log(`[TabStash] Added manual tab: ${finalUrl}`);
+      await WhyTabStorage.addManualTab(collectionId, title || finalUrl, finalUrl);
+      console.log(`[WhyTab] Added manual tab: ${finalUrl}`);
       fields.querySelector('[data-field="title"]').value = '';
       fields.querySelector('[data-field="url"]').value = '';
       fields.classList.add('hidden');
@@ -775,7 +782,7 @@ function buildAddTabForm(collectionId) {
       await loadData();
       render();
     } catch (err) {
-      console.error('[TabStash] addManualTab error:', err);
+      console.error('[WhyTab] addManualTab error:', err);
       showToast('Error adding tab');
     }
   });
@@ -873,13 +880,13 @@ function buildTabRow(tab, collectionId) {
 
   // Open tab
   row.querySelector('.tab-title').addEventListener('click', () => {
-    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
-    TabStashStorage.logAction('open', { tabId: tab.id });
+    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
+    WhyTabStorage.logAction('open', { tabId: tab.id });
   });
   bindUrlTooltip(row.querySelector('.tab-title'));
   row.querySelector('.open-btn').addEventListener('click', () => {
-    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[TabStash] open error:', err));
-    TabStashStorage.logAction('open', { tabId: tab.id });
+    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
+    WhyTabStorage.logAction('open', { tabId: tab.id });
   });
 
   // Edit tab
@@ -895,14 +902,14 @@ function buildTabRow(tab, collectionId) {
     }
     const finalUrl = nextUrl.match(/^https?:\/\//) ? nextUrl : `https://${nextUrl}`;
     try {
-      await TabStashStorage.updateTab(tab.id, {
+      await WhyTabStorage.updateTab(tab.id, {
         title: nextTitle.trim() || finalUrl,
         url: finalUrl,
       });
       await loadData();
       render();
     } catch (err) {
-      console.error('[TabStash] updateTab error:', err);
+      console.error('[WhyTab] updateTab error:', err);
       showToast('Error updating tab');
     }
   });
@@ -910,11 +917,11 @@ function buildTabRow(tab, collectionId) {
   // Delete tab
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
     try {
-      await TabStashStorage.removeTab(tab.id);
+      await WhyTabStorage.removeTab(tab.id);
       await loadData();
       render();
     } catch (err) {
-      console.error('[TabStash] removeTab error:', err);
+      console.error('[WhyTab] removeTab error:', err);
     }
   });
 
@@ -929,11 +936,11 @@ function buildTabRow(tab, collectionId) {
       e.stopPropagation();
       const tagName = btn.closest('.tag-chip').dataset.tag;
       try {
-        await TabStashStorage.removeTag(tab.id, tagName);
+        await WhyTabStorage.removeTag(tab.id, tagName);
         await loadData();
         render();
       } catch (err) {
-        console.error('[TabStash] removeTag error:', err);
+        console.error('[WhyTab] removeTag error:', err);
       }
     });
   });
@@ -953,10 +960,10 @@ function buildTabRow(tab, collectionId) {
       const val = input.value.trim();
       if (val) {
         try {
-          await TabStashStorage.addTag(tab.id, val);
+          await WhyTabStorage.addTag(tab.id, val);
           await loadData();
         } catch (err) {
-          console.error('[TabStash] addTag error:', err);
+          console.error('[WhyTab] addTag error:', err);
         }
       }
       render();
@@ -1110,11 +1117,11 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
   btn.querySelector('.sidebar-hover-pin')?.addEventListener('click', async (e) => {
     e.stopPropagation();
     try {
-      await TabStashStorage.togglePin(col.id);
+      await WhyTabStorage.togglePin(col.id);
       await loadData();
       render();
     } catch (err) {
-      console.error('[TabStash] togglePin error:', err);
+      console.error('[WhyTab] togglePin error:', err);
     }
   });
 
@@ -1123,12 +1130,12 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
     e.stopPropagation();
     if (confirm(`Delete "${col.name}"? This can't be undone.`)) {
       try {
-        await TabStashStorage.removeCollection(col.id);
+        await WhyTabStorage.removeCollection(col.id);
         if (state.currentView === col.id) state.currentView = 'all';
         await loadData();
         render();
       } catch (err) {
-        console.error('[TabStash] Delete error:', err);
+        console.error('[WhyTab] Delete error:', err);
       }
     }
   });
@@ -1146,7 +1153,7 @@ function updateViewHeader() {
     viewHeader.classList.remove('hidden');
     title.textContent = 'Search';
     count.innerHTML = '';
-    actions.classList.add('hidden');
+    actions.classList.toggle('hidden', state.collections.length === 0);
     return;
   }
 
@@ -1167,7 +1174,7 @@ function updateViewHeader() {
       title.textContent = 'Not found';
       count.innerHTML = '';
     }
-    actions.classList.add('hidden');
+    actions.classList.toggle('hidden', state.collections.length === 0);
   }
 }
 
@@ -1186,10 +1193,10 @@ function startInlineRename(blockEl, col) {
     const v = input.value.trim();
     if (v && v !== current) {
       try {
-        await TabStashStorage.renameCollection(col.id, v);
+        await WhyTabStorage.renameCollection(col.id, v);
         await loadData();
       } catch (err) {
-        console.error('[TabStash] rename error:', err);
+        console.error('[WhyTab] rename error:', err);
       }
     }
     render();
@@ -1214,13 +1221,13 @@ function openMoveModal(tabId, sourceColId) {
     item.textContent = col.name;
     item.addEventListener('click', async () => {
       try {
-        await TabStashStorage.moveTab(tabId, col.id);
+        await WhyTabStorage.moveTab(tabId, col.id);
         closeMoveModal();
         await loadData();
         render();
         showToast(`Moved to ${col.name}`);
       } catch (err) {
-        console.error('[TabStash] moveTab error:', err);
+        console.error('[WhyTab] moveTab error:', err);
       }
     });
     list.appendChild(item);
@@ -1247,17 +1254,17 @@ function openSettings() {
   replaceWithClone('#setting-archive-days', async (el) => {
     const v = parseInt(el.value, 10);
     try {
-      await TabStashStorage.saveSettings({ ...state.settings, archiveEnabled: v > 0, archiveDays: v > 0 ? v : state.settings.archiveDays });
-      state.settings = await TabStashStorage.getSettings();
+      await WhyTabStorage.saveSettings({ ...state.settings, archiveEnabled: v > 0, archiveDays: v > 0 ? v : state.settings.archiveDays });
+      state.settings = await WhyTabStorage.getSettings();
       showToast('Saved');
     } catch (err) {
-      console.error('[TabStash] save settings error:', err);
+      console.error('[WhyTab] save settings error:', err);
     }
   }, 'change');
 
   replaceWithClone('#setting-export-btn', async () => {
     try {
-      const data = await TabStashStorage.getAll();
+      const data = await WhyTabStorage.getAll();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1267,7 +1274,7 @@ function openSettings() {
       URL.revokeObjectURL(url);
       showToast('Exported');
     } catch (err) {
-      console.error('[TabStash] export error:', err);
+      console.error('[WhyTab] export error:', err);
     }
   }, 'click');
 
@@ -1287,18 +1294,18 @@ function replaceWithClone(sel, handler, event) {
 
 // ── Command palette ────────────────────────────────────
 const COMMANDS = [
-  { label: 'Save session & close tabs', action: () => saveAndCloseTabs() },
+  { label: 'Save & close tabs', action: () => saveAndCloseTabs() },
   { label: 'View all tabs', action: () => { state.currentView = 'all'; render(); }},
   { label: 'New collection', action: async () => {
     const name = prompt('Collection name:');
     if (name?.trim()) {
-      const col = await TabStashStorage.addCollection(name.trim(), []);
+      const col = await WhyTabStorage.addCollection(name.trim(), []);
       await loadData(); state.currentView = col.id; render();
     }
   }},
   { label: 'Open settings', action: () => openSettings() },
   { label: 'Export data', action: async () => {
-    const data = await TabStashStorage.getAll();
+    const data = await WhyTabStorage.getAll();
     downloadText(`tabstash-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(data, null, 2), 'application/json');
     showToast('Exported');
   }},
@@ -1332,7 +1339,7 @@ async function loadRecentSearches() {
     const items = data[RECENT_SEARCHES_KEY];
     state.recentSearches = Array.isArray(items) ? items : [];
   } catch (err) {
-    console.error('[TabStash] load recent searches error:', err);
+    console.error('[WhyTab] load recent searches error:', err);
     state.recentSearches = [];
   }
 }
@@ -1345,7 +1352,7 @@ async function saveRecentSearch(query) {
   try {
     await chrome.storage.local.set({ [RECENT_SEARCHES_KEY]: next });
   } catch (err) {
-    console.error('[TabStash] save recent searches error:', err);
+    console.error('[WhyTab] save recent searches error:', err);
   }
   updateSearchPanel();
 }
@@ -1356,7 +1363,7 @@ async function removeRecentSearch(query) {
   try {
     await chrome.storage.local.set({ [RECENT_SEARCHES_KEY]: next });
   } catch (err) {
-    console.error('[TabStash] remove recent search error:', err);
+    console.error('[WhyTab] remove recent search error:', err);
   }
   updateSearchPanel();
 }
@@ -1366,7 +1373,7 @@ async function clearRecentSearches() {
   try {
     await chrome.storage.local.set({ [RECENT_SEARCHES_KEY]: [] });
   } catch (err) {
-    console.error('[TabStash] clear recent searches error:', err);
+    console.error('[WhyTab] clear recent searches error:', err);
   }
   updateSearchPanel();
 }
@@ -1541,7 +1548,7 @@ function showToast(msg) {
 // ── Helpers ────────────────────────────────────────────
 function formatCollectionName(d = new Date()) {
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  return `${months[d.getMonth()]} ${d.getDate()} ${TabStashTime.timeOfDayLabel(d)}`;
+  return `${months[d.getMonth()]} ${d.getDate()} ${WhyTabTime.timeOfDayLabel(d)}`;
 }
 
 function formatCollectionNameWithTime(d = new Date()) {

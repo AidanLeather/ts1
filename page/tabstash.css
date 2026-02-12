@@ -32,7 +32,7 @@
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.1);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
   --transition: 200ms ease;
-  --sidebar-w: 200px;
+  --sidebar-w: 224px;
   --sidebar-pinned-bg: #f1f3f6;
   --sidebar-pinned-hover-bg: #e9edf3;
   --sidebar-pinned-active-bg: #e4e9f0;
@@ -352,7 +352,36 @@ body {
   box-shadow: 0 0 0 3px rgba(64, 64, 64, 0.08);
 }
 
-.search-bar.is-focused .search-kbd {
+.search-clear-btn {
+  position: absolute;
+  right: 34px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+  transition: background var(--transition), color var(--transition);
+}
+
+.search-clear-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.search-clear-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.search-kbd {
   opacity: 0;
 }
 
@@ -384,7 +413,7 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(64, 64, 64, 0.08);
 }
-#search:focus + .search-kbd {
+#search:focus ~ .search-kbd {
   opacity: 0;
 }
 
