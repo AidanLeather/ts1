@@ -1,14 +1,14 @@
 /**
- * TabStash – Popup (quick launcher)
+ * WhyTab – Popup (quick launcher)
  *
  * Actions:
- *   1. Save session & close tabs (primary) – save, close, navigate to TabStash
+ *   1. Save session & close tabs (primary) – save, close, navigate to WhyTab
  *   2. Save this tab – save active tab as a new collection
  *   3. Add this tab to a collection – add active tab to an existing collection
  *   4. More options accordion:
  *      - Save & close tabs to the left/right
  *      - Save all tabs (don’t close)
- *   5. Open TabStash – open full management page
+ *   5. Open WhyTab – open full management page
  *
  * Reliability:
  *   - Double-click guard on both save buttons
@@ -34,7 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      console.log(`[TabStash popup] Saving ${saveable.length} tabs...`);
+      console.log(`[WhyTab popup] Saving ${saveable.length} tabs...`);
 
       const createdAt = Date.now();
       const name = formatName(new Date(createdAt));
@@ -42,14 +42,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
-      console.log(`[TabStash popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
+      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
       await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
 
       try {
         await chrome.runtime.sendMessage({ action: 'openFullPage' });
       } catch (err) {
-        console.warn('[TabStash popup] Error opening full page:', err);
+        console.warn('[WhyTab popup] Error opening full page:', err);
       }
 
       window.close();
@@ -116,7 +116,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      console.log(`[TabStash popup] Saving ${saveable.length} tabs (keep open)...`);
+      console.log(`[WhyTab popup] Saving ${saveable.length} tabs (keep open)...`);
 
       const createdAt = Date.now();
       const name = formatName(new Date(createdAt));
@@ -124,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
-      console.log(`[TabStash popup] Saved collection "${name}" (${col.id})`);
+      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id})`);
 
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
     })
@@ -203,10 +203,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     })
   );
 
-  // ── Tertiary: Open TabStash ───────────────────────────
+  // ── Tertiary: Open WhyTab ───────────────────────────
   $('#open-btn').addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'openFullPage' }).catch((err) => {
-      console.warn('[TabStash popup] Error opening full page:', err);
+      console.warn('[WhyTab popup] Error opening full page:', err);
     });
     window.close();
   });
@@ -219,7 +219,7 @@ async function initAccordionState() {
     $('#more-options-toggle').setAttribute('aria-expanded', String(isOpen));
     $('#more-options').classList.toggle('hidden', !isOpen);
   } catch (err) {
-    console.warn('[TabStash popup] Error loading accordion state:', err);
+    console.warn('[WhyTab popup] Error loading accordion state:', err);
   }
 }
 
@@ -240,9 +240,9 @@ async function closeTabs(tabs) {
   if (closeIds.length > 0) {
     try {
       await chrome.tabs.remove(closeIds);
-      console.log(`[TabStash popup] Closed ${closeIds.length} tabs`);
+      console.log(`[WhyTab popup] Closed ${closeIds.length} tabs`);
     } catch (err) {
-      console.warn('[TabStash popup] Error closing tabs:', err);
+      console.warn('[WhyTab popup] Error closing tabs:', err);
     }
   }
 }
@@ -255,7 +255,7 @@ async function runWithSaving(btn, action) {
   try {
     await action();
   } catch (err) {
-    console.error('[TabStash popup] Action failed:', err);
+    console.error('[WhyTab popup] Action failed:', err);
     showStatus('Error performing action');
   } finally {
     if (btn) btn.disabled = false;
