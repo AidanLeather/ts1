@@ -31,6 +31,7 @@
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.1);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "Helvetica Neue", sans-serif;
+  --font-logo: "Workbench", cursive;
   --transition: 200ms ease;
   --sidebar-w: 200px;
   --sidebar-pinned-bg: #f1f3f6;
@@ -77,9 +78,10 @@ body {
 }
 
 .logo {
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: 0;
+  font-family: var(--font-logo);
   color: var(--text);
 }
 
@@ -149,10 +151,11 @@ body {
 }
 
 .sidebar-section-label {
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 400;
   text-transform: none;
-  letter-spacing: 0.3px;
+  letter-spacing: 0;
+  font-family: var(--font-logo);
   color: var(--text-tertiary);
   padding: 6px 8px 2px;
 }
