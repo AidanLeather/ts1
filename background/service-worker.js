@@ -1,5 +1,5 @@
 /**
- * TabStash – Background Service Worker
+ * WhyTab – Background Service Worker
  *
  * In Manifest V3, background scripts are service workers. Key differences
  * from MV2 background pages:
@@ -18,7 +18,7 @@ importScripts('../lib/time.js', '../lib/storage.js');
 
 // ── Install / update ───────────────────────────────────
 chrome.runtime.onInstalled.addListener(async (details) => {
-  console.log(`[TabStash SW] onInstalled: ${details.reason}`);
+  console.log(`[WhyTab SW] onInstalled: ${details.reason}`);
 
   // Set up daily auto-archive alarm (idempotent)
   chrome.alarms.create('auto-archive', { periodInMinutes: 1440 });
@@ -27,10 +27,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   archiveOldTabs();
 
   // Rebuild URL index on install/update (ensures consistency)
-  await TabStashStorage.rebuildUrlIndex();
+  await WhyTabStorage.rebuildUrlIndex();
 
   // Ensure an "Unsorted" collection exists
-  await TabStashStorage.ensureUnsorted();
+  await WhyTabStorage.ensureUnsorted();
 
   // On first install, create suggested pinned collections
   if (details.reason === 'install') {
@@ -47,19 +47,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 async function archiveOldTabs() {
   try {
-    const count = await TabStashStorage.archiveOldTabs();
+    const count = await WhyTabStorage.archiveOldTabs();
     if (count > 0) {
-      console.log(`[TabStash SW] Auto-archived ${count} tab(s).`);
+      console.log(`[WhyTab SW] Auto-archived ${count} tab(s).`);
     }
   } catch (err) {
-    console.error('[TabStash SW] archiveOldTabs error:', err);
+    console.error('[WhyTab SW] archiveOldTabs error:', err);
   }
 }
 
 // ── Suggested pinned templates ─────────────────────────
 
 async function createSuggestedTemplates() {
-  const collections = await TabStashStorage.getCollections();
+  const collections = await WhyTabStorage.getCollections();
   const realCollections = collections.filter((c) => c.name !== 'Unsorted');
   if (realCollections.length > 0) return;
 
@@ -70,19 +70,19 @@ async function createSuggestedTemplates() {
   ];
 
   for (const tmpl of templates) {
-    await TabStashStorage.addCollection(tmpl.name, [], { isPinned: true });
+    await WhyTabStorage.addCollection(tmpl.name, [], { isPinned: true });
   }
-  console.log('[TabStash SW] Created suggested pinned collections.');
+  console.log('[WhyTab SW] Created suggested pinned collections.');
 }
 
 // ── Message handling ───────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'openFullPage') {
-    openTabStashPage()
+    openWhyTabPage()
       .then(() => sendResponse({ ok: true }))
       .catch((err) => {
-        console.error('[TabStash SW] openFullPage error:', err);
+        console.error('[WhyTab SW] openFullPage error:', err);
         sendResponse({ ok: false, error: err.message });
       });
     return true; // keep channel open for async sendResponse
@@ -93,11 +93,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     if (ids.length > 0) {
       chrome.tabs.remove(ids)
         .then(() => {
-          console.log(`[TabStash SW] Closed ${ids.length} tabs`);
+          console.log(`[WhyTab SW] Closed ${ids.length} tabs`);
           sendResponse({ ok: true });
         })
         .catch((err) => {
-          console.warn('[TabStash SW] closeTabs error:', err);
+          console.warn('[WhyTab SW] closeTabs error:', err);
           sendResponse({ ok: false, error: err.message });
         });
     } else {
@@ -107,7 +107,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 });
 
-async function openTabStashPage() {
+async function openWhyTabPage() {
   const pageUrl = chrome.runtime.getURL('page/tabstash.html');
 
   // Check if the page is already open in any window
@@ -116,7 +116,7 @@ async function openTabStashPage() {
     const tab = existing[0];
     await chrome.tabs.update(tab.id, { active: true });
     await chrome.windows.update(tab.windowId, { focused: true });
-    console.log('[TabStash SW] Focused existing TabStash page');
+    console.log('[WhyTab SW] Focused existing WhyTab page');
     return;
   }
 
@@ -124,5 +124,5 @@ async function openTabStashPage() {
   const tab = await chrome.tabs.create({ url: pageUrl, active: true });
   await chrome.tabs.update(tab.id, { pinned: true });
   await chrome.tabs.move(tab.id, { index: 0 });
-  console.log('[TabStash SW] Opened new TabStash page');
+  console.log('[WhyTab SW] Opened new WhyTab page');
 }
