@@ -28,14 +28,6 @@ let state = {
   pendingSidebarCollectionId: null,
 };
 
-let dragState = {
-  collectionId: null,
-  source: null,
-  collectionPinned: null,
-  tabId: null,
-  tabCollectionId: null,
-};
-
 const RECENT_SEARCHES_KEY = 'recentSearches';
 
 function getAccordionState() {
@@ -426,47 +418,6 @@ function renderAllView(content, empty) {
   }
 }
 
-function getCollectionIdsByPinned(isPinned) {
-  return state.collections
-    .filter((c) => Boolean(c.isPinned) === Boolean(isPinned))
-    .map((c) => c.id);
-}
-
-async function reorderCollectionsWithinGroup(isPinned, sourceId, targetId) {
-  const group = getCollectionIdsByPinned(isPinned);
-  const from = group.indexOf(sourceId);
-  const to = group.indexOf(targetId);
-  if (from === -1 || to === -1 || from === to) return;
-
-  const nextGroup = [...group];
-  const [moved] = nextGroup.splice(from, 1);
-  nextGroup.splice(to, 0, moved);
-
-  const pinnedIds = isPinned ? nextGroup : getCollectionIdsByPinned(true);
-  const unpinnedIds = isPinned ? getCollectionIdsByPinned(false) : nextGroup;
-  await TabStashStorage.reorderCollections([...pinnedIds, ...unpinnedIds]);
-  await loadData();
-  render();
-}
-
-async function reorderTabsInCollection(collectionId, sourceTabId, targetTabId) {
-  if (!collectionId) return;
-  const col = state.collections.find((c) => c.id === collectionId);
-  if (!col) return;
-
-  const tabIds = col.tabs.map((t) => t.id);
-  const from = tabIds.indexOf(sourceTabId);
-  const to = tabIds.indexOf(targetTabId);
-  if (from === -1 || to === -1 || from === to) return;
-
-  const next = [...tabIds];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved);
-  await TabStashStorage.reorderTabs(collectionId, next);
-  await loadData();
-  render();
-}
-
 function renderCollectionView(content, empty, colId) {
   const col = state.collections.find((c) => c.id === colId);
   if (!col) {
@@ -566,7 +517,6 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const div = document.createElement('div');
   div.className = 'collection-block';
   div.dataset.id = col.id;
-  div.dataset.pinned = col.isPinned ? '1' : '0';
   div.id = `collection-${col.id}`;
 
   const activeTabs = col.tabs.filter((t) => !t.archived);
@@ -619,40 +569,6 @@ function buildCollectionBlock(col, readOnly, collapsible) {
         ...getAccordionState(),
         [col.id]: div.classList.contains('collapsed'),
       });
-    });
-  }
-
-  if (!readOnly && collapsible && state.currentView === 'all') {
-    header.draggable = true;
-    header.classList.add('draggable-collection');
-    header.addEventListener('dragstart', (e) => {
-      dragState.collectionId = col.id;
-      dragState.collectionPinned = Boolean(col.isPinned);
-      dragState.source = 'main';
-      div.classList.add('is-dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', col.id);
-    });
-    header.addEventListener('dragend', () => {
-      dragState.collectionId = null;
-      dragState.collectionPinned = null;
-      dragState.source = null;
-      $$('.collection-block').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
-    });
-    header.addEventListener('dragover', (e) => {
-      if (!dragState.collectionId || dragState.collectionPinned !== Boolean(col.isPinned)) return;
-      if (dragState.collectionId === col.id) return;
-      e.preventDefault();
-      div.classList.add('drag-target');
-    });
-    header.addEventListener('dragleave', () => {
-      div.classList.remove('drag-target');
-    });
-    header.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      div.classList.remove('drag-target');
-      if (!dragState.collectionId || dragState.collectionId === col.id) return;
-      await reorderCollectionsWithinGroup(Boolean(col.isPinned), dragState.collectionId, col.id);
     });
   }
 
@@ -797,8 +713,6 @@ function buildAddTabForm(collectionId) {
 function buildTabRow(tab, collectionId) {
   const row = document.createElement('div');
   row.className = `tab-row${tab.archived ? ' archived' : ''}`;
-  row.dataset.id = tab.id;
-  row.draggable = true;
 
   const tags = tab.tags || [];
 
@@ -841,35 +755,6 @@ function buildTabRow(tab, collectionId) {
       </button>
     </div>
   `;
-
-  row.addEventListener('dragstart', (e) => {
-    dragState.tabId = tab.id;
-    dragState.tabCollectionId = collectionId;
-    row.classList.add('is-dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', tab.id);
-  });
-  row.addEventListener('dragend', () => {
-    dragState.tabId = null;
-    dragState.tabCollectionId = null;
-    $$('.tab-row').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
-  });
-  row.addEventListener('dragover', (e) => {
-    if (!dragState.tabId || dragState.tabId === tab.id) return;
-    if (dragState.tabCollectionId !== collectionId) return;
-    e.preventDefault();
-    row.classList.add('drag-target');
-  });
-  row.addEventListener('dragleave', () => {
-    row.classList.remove('drag-target');
-  });
-  row.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    row.classList.remove('drag-target');
-    if (!dragState.tabId || dragState.tabId === tab.id) return;
-    if (dragState.tabCollectionId !== collectionId) return;
-    await reorderTabsInCollection(collectionId, dragState.tabId, tab.id);
-  });
 
   // Open tab
   row.querySelector('.tab-title').addEventListener('click', () => {
@@ -1020,11 +905,15 @@ function updateSidebar() {
     label.textContent = 'Collections';
     list.appendChild(label);
 
+    let previousDayKey = '';
     unpinned.forEach((col, index) => {
+      const dayKey = getCollectionDayKey(col);
+      const dayBoundary = index > 0 && dayKey !== previousDayKey;
       list.appendChild(buildSidebarItem(col, {
-        dayBoundary: false,
+        dayBoundary,
         sectionStart: index === 0,
       }));
+      previousDayKey = dayKey;
     });
   }
 
@@ -1053,7 +942,7 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
 
   btn.innerHTML = `
     ${pinSvg}
-    <span class="sidebar-col-name ${col.autoTitleType ? 'auto-named' : 'user-named'}">${escHtml(col.name)}</span>
+    <span class="sidebar-col-name">${escHtml(col.name)}</span>
     ${countBadge}
     <span class="sidebar-col-actions">
       <button class="sidebar-hover-pin${isPinned ? ' sidebar-hover-pin-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
@@ -1062,39 +951,6 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
       </button>
     </span>
   `;
-
-  btn.draggable = true;
-  btn.dataset.id = col.id;
-  btn.dataset.pinned = isPinned ? '1' : '0';
-  btn.addEventListener('dragstart', (e) => {
-    dragState.collectionId = col.id;
-    dragState.collectionPinned = isPinned;
-    dragState.source = 'sidebar';
-    btn.classList.add('is-dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', col.id);
-  });
-  btn.addEventListener('dragend', () => {
-    dragState.collectionId = null;
-    dragState.collectionPinned = null;
-    dragState.source = null;
-    $$('.sidebar-col-item').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
-  });
-  btn.addEventListener('dragover', (e) => {
-    if (!dragState.collectionId || dragState.collectionPinned !== isPinned) return;
-    if (dragState.collectionId === col.id) return;
-    e.preventDefault();
-    btn.classList.add('drag-target');
-  });
-  btn.addEventListener('dragleave', () => {
-    btn.classList.remove('drag-target');
-  });
-  btn.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    btn.classList.remove('drag-target');
-    if (!dragState.collectionId || dragState.collectionId === col.id) return;
-    await reorderCollectionsWithinGroup(isPinned, dragState.collectionId, col.id);
-  });
 
   btn.addEventListener('click', async (e) => {
     if (e.target.closest('.sidebar-col-actions')) return;
@@ -1573,6 +1429,12 @@ function relativeDate(ts) {
 
 function shouldShowTimestamp(ts) {
   return (Date.now() - ts) >= 60 * 60 * 1000;
+}
+
+function getCollectionDayKey(col) {
+  const createdAt = col.createdAt || 0;
+  const date = new Date(createdAt);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
 function shortUrl(url) {

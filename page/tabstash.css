@@ -724,7 +724,7 @@ body {
 
 .collection-name.auto-named {
   font-weight: 400;
-  opacity: 0.6;
+  color: #6b7280;
 }
 
 .collection-name.user-named {
@@ -803,13 +803,6 @@ body {
 }
 .tab-row:hover {
   background: #f9fafb;
-}
-.tab-row.drag-target {
-  outline: 1px dashed var(--text-tertiary);
-  outline-offset: -1px;
-}
-.tab-row.is-dragging {
-  opacity: 0.45;
 }
 .tab-row.archived {
   opacity: 0.4;
@@ -1623,30 +1616,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 .url-tooltip.visible { opacity: 0.9; }
 
 .collection-name.auto-named,
-.sidebar-col-name.auto-named {
-  opacity: 0.6;
-}
-
-.collection-name.user-named,
-.sidebar-col-name.user-named {
-  opacity: 1;
-}
-
-.collection-header.draggable-collection,
-.sidebar-col-item {
-  cursor: grab;
-}
-
-.collection-block.drag-target .collection-header,
-.sidebar-col-item.drag-target {
-  outline: 1px dashed var(--text-tertiary);
-  outline-offset: -1px;
-}
-
-.collection-block.is-dragging,
-.sidebar-col-item.is-dragging {
-  opacity: 0.45;
-}
+.collection-name.user-named { font-weight: 500; color: var(--text-primary); }
 
 .tab-row:focus-within { background: #f5f5f5; border-left: 2px solid transparent; }
 .sidebar-col-name {
