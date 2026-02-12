@@ -547,8 +547,8 @@ function buildCollectionBlock(col, readOnly, collapsible) {
       <button class="icon-btn rename-btn" title="Rename">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
       </button>
-      <button class="icon-btn export-btn" title="Export as Markdown">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 9V11H10V9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2V8M6.5 8L4 5.5M6.5 8L9 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <button class="icon-btn pin-btn" title="${col.isPinned ? 'Unpin' : 'Pin'}">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="${col.isPinned ? 'currentColor' : 'none'}" stroke-linejoin="round"/></svg>
       </button>
       <button class="icon-btn danger delete-btn" title="Delete">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3.5L10 10.5M10 3.5L3 10.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
@@ -608,12 +608,15 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
     startInlineRename(blockEl, col);
   });
 
-  header.querySelector('.export-btn')?.addEventListener('click', (e) => {
+  header.querySelector('.pin-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    const real = state.collections.find((c) => c.id === col.id);
-    if (!real) return;
-    downloadText(`${col.name}.md`, TabStashStorage.exportCollectionAsMarkdown(real), 'text/markdown');
-    showToast('Exported');
+    try {
+      await TabStashStorage.togglePin(col.id);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[TabStash] togglePin error:', err);
+    }
   });
 
   header.querySelector('.delete-btn')?.addEventListener('click', async (e) => {
