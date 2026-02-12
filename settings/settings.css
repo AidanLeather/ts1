@@ -38,9 +38,20 @@ header {
   margin-bottom: 32px;
 }
 header h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.5px;
+}
+header h1::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f97316;
+  flex-shrink: 0;
 }
 
 .section {

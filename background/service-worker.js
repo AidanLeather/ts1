@@ -10,8 +10,7 @@
  *   3. Event-driven – register listeners at the top level so Chrome
  *      knows to wake the worker when those events fire.
  *
- * We use chrome.alarms for periodic tasks (auto-archive) because
- * setInterval/setTimeout don't survive worker termination.
+ * Keep logic event-driven so the worker can be terminated and restarted safely.
  */
 
 importScripts('../lib/time.js', '../lib/storage.js');
@@ -19,12 +18,6 @@ importScripts('../lib/time.js', '../lib/storage.js');
 // ── Install / update ───────────────────────────────────
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log(`[WhyTab SW] onInstalled: ${details.reason}`);
-
-  // Set up daily auto-archive alarm (idempotent)
-  chrome.alarms.create('auto-archive', { periodInMinutes: 1440 });
-
-  // Run immediately to catch any backlog
-  archiveOldTabs();
 
   // Rebuild URL index on install/update (ensures consistency)
   await WhyTabStorage.rebuildUrlIndex();
@@ -37,24 +30,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     await createSuggestedTemplates();
   }
 });
-
-// ── Alarm: auto-archive old tabs ───────────────────────
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name === 'auto-archive') {
-    archiveOldTabs();
-  }
-});
-
-async function archiveOldTabs() {
-  try {
-    const count = await WhyTabStorage.archiveOldTabs();
-    if (count > 0) {
-      console.log(`[WhyTab SW] Auto-archived ${count} tab(s).`);
-    }
-  } catch (err) {
-    console.error('[WhyTab SW] archiveOldTabs error:', err);
-  }
-}
 
 // ── Suggested pinned templates ─────────────────────────
 

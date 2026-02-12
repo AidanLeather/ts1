@@ -6,7 +6,6 @@
   "permissions": [
     "tabs",
     "storage",
-    "alarms",
     "favicon"
   ],
   "action": {

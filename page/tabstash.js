@@ -576,11 +576,8 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   div.dataset.pinned = col.isPinned ? '1' : '0';
   div.id = `collection-${col.id}`;
 
-  const activeTabs = col.tabs.filter((t) => !t.archived);
-  const archivedTabs = col.tabs.filter((t) => t.archived);
-  const totalActive = activeTabs.length;
-
-  const countText = `(${totalActive})`;
+  const visibleTabs = col.tabs;
+  const countText = `(${visibleTabs.length})`;
 
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
   const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
@@ -663,13 +660,13 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     });
   }
 
-  bindCollectionActions(header, col, activeTabs, div);
+  bindCollectionActions(header, col, visibleTabs, div);
   div.appendChild(header);
 
   // Tab list body
   const body = document.createElement('div');
   body.className = 'collection-body';
-  for (const tab of [...activeTabs, ...archivedTabs]) {
+  for (const tab of visibleTabs) {
     body.appendChild(buildTabRow(tab, col.id));
   }
 
@@ -803,7 +800,7 @@ function buildAddTabForm(collectionId) {
 // ── Tab row ────────────────────────────────────────────
 function buildTabRow(tab, collectionId) {
   const row = document.createElement('div');
-  row.className = `tab-row${tab.archived ? ' archived' : ''}`;
+  row.className = 'tab-row';
   row.dataset.id = tab.id;
   row.draggable = true;
 
@@ -829,6 +826,7 @@ function buildTabRow(tab, collectionId) {
           <button class="tag-add-btn" title="Add tag">+</button>
         </div>
       </div>
+      ${state.settings.showItemUrls ? `<div class="tab-url">${escHtml(tab.url)}</div>` : ''}
     </div>
     <div class="tab-meta">
       ${showDate ? `<span class="tab-date">${relativeDate(tab.savedAt)}</span>` : ''}
@@ -1047,7 +1045,7 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
     : '';
 
   const activeCount = Array.isArray(col.tabs)
-    ? col.tabs.filter((t) => !t.archived).length
+    ? col.tabs.length
     : 0;
   const countBadge = activeCount > 0
     ? `<span class="sidebar-col-count${isPinned ? ' sidebar-col-count--pinned' : ''}">(${activeCount})</span>`
@@ -1159,7 +1157,7 @@ function updateViewHeader() {
 
   if (state.currentView === 'all') {
     viewHeader.classList.remove('hidden');
-    const total = state.collections.reduce((s, c) => s + c.tabs.filter((t) => !t.archived).length, 0);
+    const total = state.collections.reduce((s, c) => s + c.tabs.length, 0);
     title.textContent = 'All Tabs';
     count.textContent = total ? `(${total})` : '';
     actions.classList.toggle('hidden', state.collections.length === 0);
@@ -1167,7 +1165,7 @@ function updateViewHeader() {
     viewHeader.classList.add('hidden');
     const col = state.collections.find((c) => c.id === state.currentView);
     if (col) {
-      const n = col.tabs.filter((t) => !t.archived).length;
+      const n = col.tabs.length;
       title.textContent = col.name;
       count.textContent = n ? `(${n})` : '';
     } else {
@@ -1248,14 +1246,14 @@ function closeMoveModal() {
 function openSettings() {
   const s = state.settings;
 
-  const archiveEl = $('#setting-archive-days');
-  archiveEl.value = !s.archiveEnabled ? '0' : String([7,30,90].reduce((a,b) => Math.abs(b-s.archiveDays) < Math.abs(a-s.archiveDays) ? b : a));
+  const showUrlsEl = $('#setting-show-item-urls');
+  showUrlsEl.checked = Boolean(s.showItemUrls);
 
-  replaceWithClone('#setting-archive-days', async (el) => {
-    const v = parseInt(el.value, 10);
+  replaceWithClone('#setting-show-item-urls', async (el) => {
     try {
-      await WhyTabStorage.saveSettings({ ...state.settings, archiveEnabled: v > 0, archiveDays: v > 0 ? v : state.settings.archiveDays });
+      await WhyTabStorage.saveSettings({ ...state.settings, showItemUrls: el.checked });
       state.settings = await WhyTabStorage.getSettings();
+      render();
       showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
@@ -1439,7 +1437,7 @@ function hideUrlTooltip() {
 function updateSearchPlaceholder() {
   const input = $('#search');
   if (!input) return;
-  const total = state.collections.reduce((sum, col) => sum + col.tabs.filter((t) => !t.archived).length, 0);
+  const total = state.collections.reduce((sum, col) => sum + col.tabs.length, 0);
   input.placeholder = `Search ${total} tabs...`;
 }
 
@@ -1510,7 +1508,7 @@ function renderPalette(q) {
     ...COMMANDS,
     ...state.collections.map((c) => ({
       label: `Go to: ${c.name}`,
-      hint: `${c.tabs.filter((t) => !t.archived).length} tabs`,
+      hint: `${c.tabs.length} tabs`,
       action: () => { state.currentView = c.id; render(); },
     })),
   ];
