@@ -1,5 +1,5 @@
 /**
- * WhyTab – Settings page script
+ * TabStash – Settings page script
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `whytab-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `tabstash-export-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     showToast('Exported');
