@@ -96,6 +96,9 @@ function bindEvents() {
       state.searchQuery = '';
       $('#search').value = '';
       render();
+      if (btn.dataset.view === 'all') {
+        scrollMainToTop();
+      }
     });
   });
 
@@ -214,6 +217,14 @@ function bindEvents() {
       closeSearchPanel();
     }
   });
+}
+
+function scrollMainToTop() {
+  const content = $('#content');
+  if (content) {
+    content.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ── Keyboard ───────────────────────────────────────────
@@ -514,7 +525,6 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   const countText = `(${totalActive})`;
 
-  const arrow = '›';
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
   const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
@@ -526,7 +536,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const header = document.createElement('div');
   header.className = `collection-header${collapsible ? '' : ' collection-header--single'}`;
   header.innerHTML = `
-    ${collapsible ? `<span class="collapse-icon">${arrow}</span>` : '<span class="collapse-icon placeholder"></span>'}
+    ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
     <span class="${nameClass}">${escHtml(col.name)}</span>
     <span class="collection-tab-count">${countText}</span>
     ${readOnly ? '' : `
@@ -888,7 +898,7 @@ function updateSidebar() {
 
   if (unpinned.length > 0) {
     const label = document.createElement('div');
-    label.className = 'sidebar-section-label';
+    label.className = 'sidebar-section-label sidebar-section-label--collections';
     label.textContent = 'Collections';
     list.appendChild(label);
 
