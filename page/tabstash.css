@@ -1732,3 +1732,56 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 }
 
 .collection-body .tab-row:last-child { margin-bottom: 0; }
+
+/* Task polish: pinned marker, search count placeholder, saved state */
+.search-bar {
+  position: relative;
+}
+
+.search-placeholder {
+  position: absolute;
+  left: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  font-size: 13.5px;
+  pointer-events: none;
+}
+
+#search:focus + .search-placeholder,
+#search:not(:placeholder-shown) + .search-placeholder {
+  opacity: 0;
+}
+
+#search-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.pinned-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f97316;
+  display: inline-block;
+  margin-right: 4px;
+  flex-shrink: 0;
+  position: relative;
+  top: -1px;
+}
+
+.collection-name,
+.sidebar-col-name {
+  display: inline-flex;
+  align-items: flex-start;
+}
+
+#save-tabs-btn,
+#empty-cta-btn {
+  min-width: 150px;
+  transition: opacity 150ms ease;
+}
+
+#save-tabs-btn.label-fade-out,
+#empty-cta-btn.label-fade-out {
+  opacity: 0.5;
+}
