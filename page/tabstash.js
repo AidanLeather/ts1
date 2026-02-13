@@ -584,7 +584,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
     : '';
 
-  const nameClass = col.autoTitleType === 'timeOfDay'
+  const nameClass = col.autoTitleType
     ? 'collection-name auto-named'
     : 'collection-name user-named';
   const header = document.createElement('div');
