@@ -1746,21 +1746,11 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
   color: rgba(26, 26, 26, 0.6);
 }
 
-.archived-toggle {
-  border: none;
-  background: none;
-  color: var(--text-secondary);
-  font-size: 12px;
-  padding: 4px 0 6px 26px;
-  cursor: pointer;
-}
 
-.archived-divider {
-  height: 1px;
-  background: var(--border-light);
-  margin: 2px 0 6px 26px;
-}
 
+.tab-row-archived-start {
+  margin-top: 10px;
+}
 .collection-empty-archived {
   color: var(--text-tertiary);
   font-size: 12px;
