@@ -38,8 +38,9 @@ let dragState = {
   tabCollectionId: null,
   tabSourceRow: null,
   tabDragImage: null,
-  tabDragDelayTimer: null,
-  tabDragReadyRow: null,
+  tabDropCollectionId: null,
+  tabDropIndex: null,
+  suppressTabClickId: null,
   autoScrollRaf: null,
   autoScrollVelocity: 0,
 };
@@ -276,20 +277,14 @@ function bindEvents() {
   });
 }
 
-function clearTabDragDelay() {
-  if (dragState.tabDragDelayTimer) {
-    clearTimeout(dragState.tabDragDelayTimer);
-    dragState.tabDragDelayTimer = null;
-  }
-  if (dragState.tabDragReadyRow) {
-    dragState.tabDragReadyRow.draggable = false;
-    dragState.tabDragReadyRow.classList.remove('drag-ready');
-    dragState.tabDragReadyRow = null;
-  }
+function clearTabDropIndicator() {
+  document.querySelectorAll('.tab-drop-indicator').forEach((el) => el.remove());
+  dragState.tabDropCollectionId = null;
+  dragState.tabDropIndex = null;
 }
 
 function resetTabDragState() {
-  clearTabDragDelay();
+  clearTabDropIndicator();
   dragState.type = null;
   dragState.tabId = null;
   dragState.tabCollectionId = null;
@@ -363,12 +358,41 @@ function createTabDragPreview(title, faviconSrc) {
   return ghost;
 }
 
-async function moveDraggedTabToCollection(targetCollectionId) {
+async function moveDraggedTabToCollection(targetCollectionId, targetIndex = null) {
   if (!dragState.tabId || !dragState.tabCollectionId || !targetCollectionId) return;
-  if (dragState.tabCollectionId === targetCollectionId) return;
-  await WhyTabStorage.moveTab(dragState.tabId, targetCollectionId);
+  await WhyTabStorage.moveTab(dragState.tabId, targetCollectionId, targetIndex);
   await loadData();
   render();
+}
+
+function getDropIndexInCollectionBody(body, clientY) {
+  const rows = [...body.querySelectorAll('.tab-row')]
+    .filter((el) => el.dataset.id !== dragState.tabId);
+
+  for (let i = 0; i < rows.length; i += 1) {
+    const rect = rows[i].getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    if (clientY < midpoint) return i;
+  }
+
+  return rows.length;
+}
+
+function updateTabDropIndicator(collectionId, body, dropIndex) {
+  clearTabDropIndicator();
+  const indicator = document.createElement('div');
+  indicator.className = 'tab-drop-indicator';
+
+  const rows = [...body.querySelectorAll('.tab-row')]
+    .filter((el) => el.dataset.id !== dragState.tabId);
+  if (dropIndex >= rows.length) {
+    body.appendChild(indicator);
+  } else {
+    body.insertBefore(indicator, rows[dropIndex]);
+  }
+
+  dragState.tabDropCollectionId = collectionId;
+  dragState.tabDropIndex = dropIndex;
 }
 
 function scrollMainToTop() {
@@ -613,24 +637,6 @@ async function reorderCollectionsWithinGroup(isPinned, sourceId, targetId) {
   render();
 }
 
-async function reorderTabsInCollection(collectionId, sourceTabId, targetTabId) {
-  if (!collectionId) return;
-  const col = state.collections.find((c) => c.id === collectionId);
-  if (!col) return;
-
-  const tabIds = col.tabs.map((t) => t.id);
-  const from = tabIds.indexOf(sourceTabId);
-  const to = tabIds.indexOf(targetTabId);
-  if (from === -1 || to === -1 || from === to) return;
-
-  const next = [...tabIds];
-  const [moved] = next.splice(from, 1);
-  next.splice(to, 0, moved);
-  await WhyTabStorage.reorderTabs(collectionId, next);
-  await loadData();
-  render();
-}
-
 function renderCollectionView(content, empty, colId) {
   const col = state.collections.find((c) => c.id === colId);
   if (!col || col.archived) {
@@ -838,6 +844,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
         await reorderCollectionsWithinGroup(Boolean(col.isPinned), dragState.collectionId, col.id);
       }
       if (dragState.type === 'tab') {
+        clearTabDropIndicator();
         await moveDraggedTabToCollection(col.id);
       }
     });
@@ -848,6 +855,24 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   const body = document.createElement('div');
   body.className = 'collection-body';
+
+  if (!readOnly) {
+    body.addEventListener('dragover', (e) => {
+      if (dragState.type !== 'tab' || !dragState.tabId || div.classList.contains('collapsed')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dropIndex = getDropIndexInCollectionBody(body, e.clientY);
+      updateTabDropIndicator(col.id, body, dropIndex);
+    });
+    body.addEventListener('drop', async (e) => {
+      if (dragState.type !== 'tab' || !dragState.tabId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dropIndex = getDropIndexInCollectionBody(body, e.clientY);
+      clearTabDropIndicator();
+      await moveDraggedTabToCollection(col.id, dropIndex);
+    });
+  }
 
   if (!readOnly && activeTabs.length === 0 && archivedTabs.length > 0) {
     const emptyArchived = document.createElement('div');
@@ -1067,33 +1092,19 @@ function buildTabRow(tab, collectionId, options = {}) {
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
       </button>
       <button class="icon-btn archive-tab-btn" title="${archiveTitle}">${archiveIcon}</button>
-      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item edit-title-btn">Edit title</button><button class="inline-menu-item edit-url-btn">Edit URL</button><button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button></div></details>
+      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button></div></details>
     </div>
   `;
 
   if (!inSearch) {
-    row.draggable = false;
-
-    const armDrag = (event) => {
-      if (event.button !== 0) return;
-      if (event.target.closest('.tab-actions, .tag-remove, .tag-add-btn, .inline-menu')) return;
-      clearTabDragDelay();
-      dragState.tabDragReadyRow = row;
-      dragState.tabDragDelayTimer = setTimeout(() => {
-        row.draggable = true;
-        row.classList.add('drag-ready');
-      }, 150);
-    };
-
-    row.addEventListener('mousedown', armDrag);
-    row.addEventListener('mouseup', clearTabDragDelay);
-    row.addEventListener('mouseleave', clearTabDragDelay);
+    row.draggable = true;
 
     row.addEventListener('dragstart', (e) => {
       dragState.type = 'tab';
       dragState.tabId = tab.id;
       dragState.tabCollectionId = collectionId;
       dragState.tabSourceRow = row;
+      dragState.suppressTabClickId = tab.id;
       row.classList.add('is-dragging');
       const faviconSrc = row.querySelector('.tab-favicon')?.getAttribute('src') || '';
       const ghost = createTabDragPreview(tab.title, faviconSrc);
@@ -1104,35 +1115,20 @@ function buildTabRow(tab, collectionId, options = {}) {
     });
     row.addEventListener('dragend', () => {
       resetTabDragState();
-      row.draggable = false;
-      row.classList.remove('drag-ready');
-    });
-    row.addEventListener('dragover', (e) => {
-      if (dragState.type !== 'tab') return;
-      if (!dragState.tabId || dragState.tabId === tab.id) return;
-      if (dragState.tabCollectionId !== collectionId) return;
-      e.preventDefault();
-      row.classList.add('drag-target');
-    });
-    row.addEventListener('dragleave', () => {
-      row.classList.remove('drag-target');
-    });
-    row.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      row.classList.remove('drag-target');
-      if (dragState.type !== 'tab') return;
-      if (!dragState.tabId || dragState.tabId === tab.id) return;
-      if (dragState.tabCollectionId !== collectionId) return;
-      await reorderTabsInCollection(collectionId, dragState.tabId, tab.id);
+      setTimeout(() => {
+        dragState.suppressTabClickId = null;
+      }, 0);
     });
   }
 
   row.querySelector('.tab-title').addEventListener('click', () => {
+    if (dragState.suppressTabClickId === tab.id) return;
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
     WhyTabStorage.logAction('open', { tabId: tab.id });
   });
   bindUrlTooltip(row.querySelector('.tab-title'));
   row.querySelector('.open-btn').addEventListener('click', () => {
+    if (dragState.suppressTabClickId === tab.id) return;
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
     WhyTabStorage.logAction('open', { tabId: tab.id });
   });
@@ -1156,8 +1152,6 @@ function buildTabRow(tab, collectionId, options = {}) {
   }
 
   row.querySelector('.edit-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'title'));
-  row.querySelector('.edit-title-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'title'));
-  row.querySelector('.edit-url-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'url'));
 
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
     try {
