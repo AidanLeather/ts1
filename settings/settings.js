@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const useContextualAutoTitles = document.getElementById('use-contextual-auto-titles');
   const exportBtn = document.getElementById('export-btn');
   const clearBtn = document.getElementById('clear-btn');
+  const confirmModal = document.getElementById('confirm-modal');
+  const confirmClearBtn = document.getElementById('confirm-clear-btn');
+  const cancelClearBtn = document.getElementById('cancel-clear-btn');
 
   // Populate
   showItemUrls.checked = Boolean(settings.showItemUrls);
@@ -40,12 +43,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Clear all
-  clearBtn.addEventListener('click', async () => {
-    if (confirm('This will permanently delete all saved tabs and collections. Are you sure?')) {
-      await chrome.storage.local.clear();
-      showToast('All data cleared');
+  clearBtn.addEventListener('click', () => {
+    confirmModal.classList.remove('hidden');
+    confirmModal.setAttribute('aria-hidden', 'false');
+  });
+
+  cancelClearBtn.addEventListener('click', closeConfirmModal);
+  confirmModal.querySelector('.modal-backdrop').addEventListener('click', closeConfirmModal);
+
+  confirmClearBtn.addEventListener('click', async () => {
+    await chrome.storage.local.clear();
+    closeConfirmModal();
+    showToast('All data cleared');
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeConfirmModal();
     }
   });
+
+  function closeConfirmModal() {
+    confirmModal.classList.add('hidden');
+    confirmModal.setAttribute('aria-hidden', 'true');
+  }
 });
 
 function showToast(msg) {

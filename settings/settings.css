@@ -199,3 +199,44 @@ header h1::before {
 .hidden {
   display: none;
 }
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.modal-dialog {
+  position: relative;
+  width: min(340px, calc(100vw - 32px));
+  background: #fff;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
+  padding: 22px;
+}
+
+.modal-dialog h3 {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.modal-dialog p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
