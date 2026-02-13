@@ -27,16 +27,7 @@ let state = {
   },
   pendingSidebarCollectionId: null,
   archivedExpanded: {},
-  pruneMode: false,
-  pruneSession: {
-    archived: 0,
-    deleted: 0,
-  },
-  pruneDuplicateMap: {},
 };
-
-let pruneTallyFadeTimer = null;
-let pruneTallyHideTimer = null;
 
 let dragState = {
   type: null,
@@ -284,9 +275,6 @@ function bindEvents() {
     await setAllAccordionState(false);
     render();
   });
-  $('#prune-mode-btn')?.addEventListener('click', () => {
-    togglePruneMode();
-  });
 
   const sortMenu = $('#collection-sort-menu');
   sortMenu?.querySelectorAll('.collection-sort-item').forEach((btn) => {
@@ -323,109 +311,6 @@ function getCollectionsForDisplay(collections, sortMode) {
   );
   const archived = collections.filter((c) => c.archived);
   return [...pinned, ...unpinnedActive, ...archived];
-}
-
-function getPruneSortedCollections(collections) {
-  return [...collections].sort((a, b) => {
-    const aNever = a.lastAccessedAt == null;
-    const bNever = b.lastAccessedAt == null;
-    if (aNever !== bNever) return aNever ? -1 : 1;
-    const aLast = a.lastAccessedAt ?? Number.MAX_SAFE_INTEGER;
-    const bLast = b.lastAccessedAt ?? Number.MAX_SAFE_INTEGER;
-    if (aLast !== bLast) return aLast - bLast;
-    const aSession = a.autoTitleType === 'timeOfDay';
-    const bSession = b.autoTitleType === 'timeOfDay';
-    if (aSession !== bSession) return aSession ? -1 : 1;
-    return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
-  });
-}
-
-function formatLastAccessLabel(ts) {
-  if (!ts) return 'Never opened';
-  const diff = Date.now() - ts;
-  const dayMs = 24 * 60 * 60 * 1000;
-  if (diff < dayMs) return 'Opened today';
-  const days = Math.floor(diff / dayMs);
-  if (days < 7) return `Opened ${days} day${days === 1 ? '' : 's'} ago`;
-  const weeks = Math.floor(days / 7);
-  if (days < 60) return `Opened ${weeks} week${weeks === 1 ? '' : 's'} ago`;
-  const months = Math.floor(days / 30);
-  return `Opened ${months} month${months === 1 ? '' : 's'} ago`;
-}
-
-function shouldShowUntouchedHint(col) {
-  if (col.isPinned || col.autoTitleType !== 'timeOfDay' || !col.lastAccessedAt) return false;
-  return (Date.now() - col.lastAccessedAt) >= (14 * 24 * 60 * 60 * 1000);
-}
-
-function incrementPruneTally(kind, amount = 1) {
-  if (!state.pruneMode) return;
-  if (kind === 'archived') state.pruneSession.archived += amount;
-  if (kind === 'deleted') state.pruneSession.deleted += amount;
-  const el = $('#prune-tally');
-  if (!el) return;
-  el.textContent = `${state.pruneSession.archived} archived · ${state.pruneSession.deleted} deleted`;
-  el.classList.remove('prune-tally-tick');
-  requestAnimationFrame(() => el.classList.add('prune-tally-tick'));
-}
-
-function buildPruneDuplicateMap() {
-  const urlMap = new Map();
-  for (const col of state.collections) {
-    if (col.archived) continue;
-    for (const tab of col.tabs || []) {
-      if (tab.archived || !tab.url) continue;
-      if (!urlMap.has(tab.url)) urlMap.set(tab.url, []);
-      urlMap.get(tab.url).push({ tabId: tab.id, collectionName: col.name });
-    }
-  }
-
-  const duplicateMap = {};
-  for (const items of urlMap.values()) {
-    if (items.length < 2) continue;
-    for (const item of items) {
-      duplicateMap[item.tabId] = items
-        .filter((entry) => entry.tabId !== item.tabId)
-        .map((entry) => entry.collectionName);
-    }
-  }
-  state.pruneDuplicateMap = duplicateMap;
-}
-
-function showPruneTally(visible) {
-  const tally = $('#prune-tally');
-  if (!tally) return;
-  clearTimeout(pruneTallyFadeTimer);
-  clearTimeout(pruneTallyHideTimer);
-  if (visible) {
-    tally.classList.remove('hidden', 'is-fading');
-    tally.textContent = `${state.pruneSession.archived} archived · ${state.pruneSession.deleted} deleted`;
-    return;
-  }
-
-  pruneTallyFadeTimer = setTimeout(() => {
-    tally.classList.add('is-fading');
-    pruneTallyHideTimer = setTimeout(() => {
-      tally.classList.add('hidden');
-      tally.classList.remove('is-fading');
-    }, 300);
-  }, 2000);
-}
-
-function togglePruneMode(forceValue = null) {
-  const nextValue = forceValue == null ? !state.pruneMode : Boolean(forceValue);
-  if (nextValue === state.pruneMode) return;
-  state.pruneMode = nextValue;
-  document.body.classList.toggle('prune-mode', state.pruneMode);
-
-  if (state.pruneMode) {
-    state.pruneSession = { archived: 0, deleted: 0 };
-    buildPruneDuplicateMap();
-    showPruneTally(true);
-  } else {
-    showPruneTally(false);
-  }
-  render();
 }
 
 async function saveCollectionSortPreference(sortMode) {
@@ -700,7 +585,6 @@ function render() {
   updateSidebar();
   updateViewHeader();
   updateSearchPlaceholder();
-  updatePruneModeUi();
   $('#search-clear-btn')?.classList.toggle('hidden', !state.searchQuery.trim());
 
   const content = $('#content');
@@ -752,17 +636,13 @@ function renderAllView(content, empty) {
   const activeCollections = state.collections.filter((c) => !c.archived);
   if (activeCollections.length === 0) {
     content.innerHTML = '';
-    if (state.pruneMode) {
-      setEmptyState({ title: 'All clear', sub: '' });
-    }
     empty.classList.remove('hidden');
     return;
   }
   empty.classList.add('hidden');
   content.innerHTML = '';
   const pinned = activeCollections.filter((c) => c.isPinned);
-  const unpinnedRaw = activeCollections.filter((c) => !c.isPinned);
-  const unpinned = state.pruneMode ? getPruneSortedCollections(unpinnedRaw) : unpinnedRaw;
+  const unpinned = activeCollections.filter((c) => !c.isPinned);
 
   if (pinned.length > 0) {
     content.appendChild(buildCollectionSectionLabel('Pinned'));
@@ -925,8 +805,6 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const showArchived = Boolean(state.archivedExpanded[col.id]);
   const visibleTabs = readOnly ? (col.tabs || []) : activeTabs;
   const countText = `(${activeTabs.length})`;
-  const pruneAccessText = formatLastAccessLabel(col.lastAccessedAt);
-  const showUntouched = state.pruneMode && shouldShowUntouchedHint(col);
 
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
   const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
@@ -951,10 +829,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
-    <div class="collection-title-wrap">
-      <span class="${nameClass}">${escHtml(col.name)}</span>${archivedNameLabel}
-      ${state.pruneMode ? `<div class=\"collection-last-access\">${escHtml(pruneAccessText)}${showUntouched ? '<span class=\"untouched-pill\">Untouched</span>' : ''}</div>` : ''}
-    </div>
+    <span class="${nameClass}">${escHtml(col.name)}</span>${archivedNameLabel}
     <span class="collection-tab-count">${countText}</span>
     ${readOnly ? '' : `
     <div class="col-actions">
@@ -986,7 +861,6 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     header.addEventListener('click', async (e) => {
       if (e.target.closest('.col-actions') || e.target.closest('.inline-menu')) return;
       div.classList.toggle('collapsed');
-      await WhyTabStorage.touchCollectionAccessed(col.id);
       await setAccordionState({
         ...getAccordionState(),
         [col.id]: div.classList.contains('collapsed'),
@@ -1068,26 +942,18 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   if (!readOnly && activeTabs.length === 0 && archivedTabs.length > 0) {
     const emptyArchived = document.createElement('div');
-    if (state.pruneMode && !col.archived) {
-      emptyArchived.className = 'collection-empty-archived prune-empty-prompt';
-      emptyArchived.innerHTML = 'All tabs archived — archive this collection? <button class="archive-collection-link" type="button">Archive collection</button>';
-      emptyArchived.querySelector('.archive-collection-link')?.addEventListener('click', async () => {
-        await archiveCollectionWithUndo(col.id, true);
-      });
-    } else {
-      emptyArchived.className = 'collection-empty-archived';
-      emptyArchived.textContent = 'All tabs archived';
-    }
+    emptyArchived.className = 'collection-empty-archived';
+    emptyArchived.textContent = 'All tabs archived';
     body.appendChild(emptyArchived);
   }
 
   for (const tab of visibleTabs) {
-    body.appendChild(buildTabRow(tab, col.id, { inSearch: readOnly, collectionName: col.name }));
+    body.appendChild(buildTabRow(tab, col.id, { inSearch: readOnly }));
   }
 
   if (!readOnly && archivedTabs.length > 0 && showArchived) {
     archivedTabs.forEach((tab, index) => {
-      const row = buildTabRow(tab, col.id, { archived: true, collectionName: col.name });
+      const row = buildTabRow(tab, col.id, { archived: true });
       if (index === 0) {
         row.classList.add('tab-row-archived-start');
       }
@@ -1110,15 +976,13 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
     render();
   });
 
-  header.querySelector('.restore-all-btn')?.addEventListener('click', async (e) => {
+  header.querySelector('.restore-all-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     for (const t of activeTabs) {
       chrome.tabs.create({ url: t.url, active: false }).catch((err) => {
         console.warn('[WhyTab] Error opening tab:', err);
       });
-      await WhyTabStorage.markTabOpened(t.id);
     }
-    await WhyTabStorage.touchCollectionAccessed(col.id);
     WhyTabStorage.logAction('open', { collectionId: col.id, tabCount: activeTabs.length });
     showToast(`Opened ${activeTabs.length} tab${activeTabs.length !== 1 ? 's' : ''}`);
   });
@@ -1261,8 +1125,6 @@ function buildTabRow(tab, collectionId, options = {}) {
     ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 10.5V4.2M6.5 4.2L4.5 6.2M6.5 4.2L8.5 6.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2.5H11V10.5H2V2.5Z" stroke="currentColor" stroke-width="1.1"/></svg>'
     : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V8.8M6.5 8.8L4.5 6.8M6.5 8.8L8.5 6.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2.5H11V10.5H2V2.5Z" stroke="currentColor" stroke-width="1.1"/></svg>';
   const archivedLabel = (archived || tab.collectionArchived) ? '<span class="archived-search-label">(archived)</span>' : '';
-  const pruneAccessText = formatLastAccessLabel(tab.lastAccessedAt);
-  const duplicateCollections = state.pruneDuplicateMap[tab.id] || [];
 
   row.innerHTML = `
     ${inSearch ? '' : `<span class="tab-drag-handle" aria-hidden="true" title="Drag tab">
@@ -1283,8 +1145,6 @@ function buildTabRow(tab, collectionId, options = {}) {
         </div>
       </div>
       ${state.settings.showItemUrls ? `<div class="tab-url">${escHtml(tab.url)}</div>` : ''}
-      ${state.pruneMode ? `<div class="tab-prune-meta">${escHtml(pruneAccessText)}</div>` : ''}
-      ${state.pruneMode && duplicateCollections.length ? `<div class="tab-prune-meta">Also in: ${escHtml(duplicateCollections.join(', '))}</div>` : ''}
     </div>
     <div class="tab-meta">
       ${showDate ? `<span class="tab-date">${relativeDate(tab.savedAt)}</span>` : ''}
@@ -1326,35 +1186,29 @@ function buildTabRow(tab, collectionId, options = {}) {
     });
   }
 
-  row.querySelector('.tab-title').addEventListener('click', async () => {
+  row.querySelector('.tab-title').addEventListener('click', () => {
     if (dragState.suppressTabClickId === tab.id) return;
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
-    await WhyTabStorage.markTabOpened(tab.id);
     WhyTabStorage.logAction('open', { tabId: tab.id });
   });
   bindUrlTooltip(row.querySelector('.tab-title'));
-  row.querySelector('.open-btn').addEventListener('click', async () => {
+  row.querySelector('.open-btn').addEventListener('click', () => {
     if (dragState.suppressTabClickId === tab.id) return;
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
-    await WhyTabStorage.markTabOpened(tab.id);
     WhyTabStorage.logAction('open', { tabId: tab.id });
   });
 
   row.querySelector('.archive-tab-btn').addEventListener('click', async () => {
-    if (archived) {
-      try {
-        await WhyTabStorage.setTabArchived(tab.id, false);
-        await loadData();
-        render();
-      } catch (err) {
-        console.error('[WhyTab] archive tab error:', err);
-      }
-      return;
+    try {
+      await WhyTabStorage.setTabArchived(tab.id, !archived);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[WhyTab] archive tab error:', err);
     }
-    await archiveTabWithUndo(tab.id);
   });
 
-  if (inSearch && !state.pruneMode) {
+  if (inSearch) {
     row.querySelector('.edit-btn')?.remove();
     row.querySelector('.archive-tab-btn')?.remove();
     row.querySelector('.tab-menu')?.remove();
@@ -1362,16 +1216,16 @@ function buildTabRow(tab, collectionId, options = {}) {
     return row;
   }
 
-  if (inSearch && state.pruneMode) {
-    row.querySelector('.edit-btn')?.remove();
-    row.querySelector('.tag-container')?.classList.add('hidden');
-    row.querySelector('.move-tab-btn')?.remove();
-  }
-
   row.querySelector('.edit-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'title'));
 
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
-    await deleteTabWithUndo(tab.id);
+    try {
+      await WhyTabStorage.removeTab(tab.id);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[WhyTab] removeTab error:', err);
+    }
   });
 
   row.querySelector('.move-tab-btn').addEventListener('click', () => {
@@ -1693,7 +1547,6 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
     state.searchQuery = '';
     $('#search').value = '';
     await expandCollectionIfCollapsed(col.id);
-    await WhyTabStorage.touchCollectionAccessed(col.id);
     state.pendingSidebarCollectionId = col.id;
     render();
   });
@@ -2064,17 +1917,7 @@ function updateSearchPlaceholder() {
   const total = state.collections
     .filter((col) => !col.archived)
     .reduce((sum, col) => sum + col.tabs.filter((tab) => !tab.archived).length, 0);
-  input.placeholder = state.pruneMode
-    ? `Pruning ${total} tabs...`
-    : `Search ${total} tabs...`;
-}
-
-function updatePruneModeUi() {
-  const pruneBtn = $('#prune-mode-btn');
-  pruneBtn?.classList.toggle('active', state.pruneMode);
-  if (pruneBtn) {
-    pruneBtn.textContent = state.pruneMode ? 'Done pruning' : 'Prune';
-  }
+  input.placeholder = `Search ${total} tabs...`;
 }
 
 function renderRecentSearches() {
@@ -2166,47 +2009,6 @@ function highlightPalette() {
 }
 
 
-async function archiveTabWithUndo(tabId) {
-  const snapshot = await WhyTabStorage.getAll();
-  const target = snapshot.collections.flatMap((c) => c.tabs).find((t) => t.id === tabId);
-  if (!target) return;
-  await WhyTabStorage.setTabArchived(tabId, true);
-  await loadData();
-  render();
-  incrementPruneTally('archived');
-
-  showToast('Tab archived', {
-    actionLabel: 'Undo',
-    duration: 4000,
-    onAction: async () => {
-      await WhyTabStorage.replaceState(snapshot.collections, snapshot.urlIndex);
-      await loadData();
-      render();
-    },
-  });
-}
-
-async function deleteTabWithUndo(tabId) {
-  const snapshot = await WhyTabStorage.getAll();
-  const target = snapshot.collections.flatMap((c) => c.tabs).find((t) => t.id === tabId);
-  if (!target) return;
-  await WhyTabStorage.removeTab(tabId);
-  await loadData();
-  render();
-  incrementPruneTally('deleted');
-
-  showToast('Tab deleted', {
-    actionLabel: 'Undo',
-    duration: 4000,
-    onAction: async () => {
-      await WhyTabStorage.replaceState(snapshot.collections, snapshot.urlIndex);
-      await loadData();
-      render();
-    },
-  });
-}
-
-
 async function archiveCollectionWithUndo(collectionId, archive = true) {
   const snapshot = await WhyTabStorage.getAll();
   const target = snapshot.collections.find((c) => c.id === collectionId);
@@ -2215,8 +2017,6 @@ async function archiveCollectionWithUndo(collectionId, archive = true) {
   await loadData();
   if (state.currentView === collectionId) state.currentView = 'all';
   render();
-
-  if (archive) incrementPruneTally('archived');
 
   showToast(`Collection ${archive ? 'archived' : 'restored'}`, {
     actionLabel: 'Undo',
@@ -2238,8 +2038,6 @@ async function deleteCollectionWithUndo(collectionId) {
   await loadData();
   render();
 
-  incrementPruneTally('deleted');
-
   showToast('Collection deleted', {
     actionLabel: 'Undo',
     duration: 4000,
@@ -2252,30 +2050,16 @@ async function deleteCollectionWithUndo(collectionId) {
 }
 
 // ── Toast ──────────────────────────────────────────────
-const activeToasts = [];
-
-function removeToastById(id) {
-  const idx = activeToasts.findIndex((entry) => entry.id === id);
-  if (idx === -1) return;
-  const [entry] = activeToasts.splice(idx, 1);
-  clearTimeout(entry.timer);
-  entry.el.classList.remove('visible');
-  setTimeout(() => entry.el.remove(), 200);
+function hideToast() {
+  const toast = $('#toast');
+  toast.classList.remove('visible');
+  setTimeout(() => toast.classList.add('hidden'), 200);
 }
 
 function showToast(msg, options = {}) {
   const { actionLabel = '', onAction = null, duration = 2000 } = options;
-  const stack = $('#toast-stack');
-  if (!stack) return;
-
-  if (activeToasts.length >= 3) {
-    removeToastById(activeToasts[0].id);
-  }
-
-  const id = crypto.randomUUID();
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-
+  const toast = $('#toast');
+  toast.innerHTML = '';
   const text = document.createElement('span');
   text.textContent = msg;
   toast.appendChild(text);
@@ -2289,17 +2073,19 @@ function showToast(msg, options = {}) {
       try {
         await onAction();
       } finally {
-        removeToastById(id);
+        hideToast();
       }
     });
     toast.appendChild(action);
   }
 
-  stack.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add('visible'));
-
-  const timer = setTimeout(() => removeToastById(id), duration);
-  activeToasts.push({ id, el: toast, timer });
+  toast.classList.remove('hidden');
+  toast.offsetHeight;
+  toast.classList.add('visible');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => {
+    hideToast();
+  }, duration);
 }
 
 // ── Helpers ────────────────────────────────────────────

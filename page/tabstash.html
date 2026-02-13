@@ -73,7 +73,6 @@
         <div id="view-actions" class="view-actions hidden">
           <button id="collapse-all-btn" class="view-action-btn">Collapse all</button>
           <button id="expand-all-btn" class="view-action-btn">Expand all</button>
-          <button id="prune-mode-btn" class="view-action-btn prune-toggle-btn" type="button">Prune</button>
           <span id="collection-sort-divider" class="view-actions-divider hidden" aria-hidden="true"></span>
           <details id="collection-sort-menu" class="inline-menu sort-menu hidden">
             <summary class="view-action-btn sort-menu-btn" title="Sort collections">
@@ -96,8 +95,6 @@
           <button id="filter-clear" class="filter-clear">&times;</button>
         </span>
       </div>
-
-      <div id="prune-tally" class="prune-tally hidden" aria-live="polite">0 archived · 0 deleted</div>
 
       <!-- View title -->
       <div class="view-header">
@@ -221,7 +218,7 @@
   </div>
 
   <!-- Toast -->
-  <div id="toast-stack" class="toast-stack"></div>
+  <div id="toast" class="toast hidden"></div>
 
   <script src="../lib/time.js"></script>
   <script src="../lib/storage.js"></script>
