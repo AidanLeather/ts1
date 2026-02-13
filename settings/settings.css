@@ -14,8 +14,11 @@
   --border: #e5e5e5;
   --text: #1a1a1a;
   --text-secondary: #6b6b6b;
-  --accent: #404040;
-  --accent-hover: #2a2a2a;
+  --color-accent: #4E7A65;
+  --color-accent-hover: #3D6150;
+  --color-accent-light: #E8F0EC;
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
   --danger: #dc2626;
   --danger-hover: #b91c1c;
   --radius-sm: 4px;
@@ -54,7 +57,7 @@ header h1::before {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #f97316;
+  background: #4E7A65;
   flex-shrink: 0;
 }
 
@@ -138,7 +141,7 @@ header h1::before {
 }
 .input-group input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  box-shadow: 0 0 0 3px rgba(78, 122, 101, 0.2);
 }
 .unit {
   font-size: 13px;
