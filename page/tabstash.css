@@ -1005,7 +1005,7 @@ body {
   opacity: 0;
   transition: opacity var(--transition);
   flex-shrink: 0;
-  width: 120px;
+  width: 132px;
   justify-content: flex-end;
 }
 .tab-row:hover .tab-actions {
@@ -1032,8 +1032,8 @@ body {
   color: var(--text);
 }
 .icon-btn.danger:hover {
-  background: var(--danger-bg);
-  color: var(--danger);
+  background: var(--bg-active);
+  color: var(--text-secondary);
 }
 
 /* ── Empty state ─────────────────────────────────────── */
@@ -1734,3 +1734,117 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 }
 
 .collection-body .tab-row:last-child { margin-bottom: 0; }
+
+
+.nav-item-archived {
+  color: rgba(26, 26, 26, 0.6);
+  font-size: 12px;
+}
+
+.collection-header.is-archived .collection-name,
+.collection-header.is-archived .collection-tab-count {
+  color: rgba(26, 26, 26, 0.6);
+}
+
+.archived-toggle {
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 0 6px 26px;
+  cursor: pointer;
+}
+
+.archived-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 2px 0 6px 26px;
+}
+
+.collection-empty-archived {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  padding: 4px 0 2px 26px;
+}
+
+.tab-row-archived,
+.tab-row-archived .tab-title,
+.tab-row-archived .tab-url,
+.tab-row-archived .tab-date,
+.tab-row-archived .tab-favicon {
+  color: rgba(26, 26, 26, 0.6);
+  opacity: 0.6;
+}
+
+.inline-menu {
+  position: relative;
+}
+
+.inline-menu summary {
+  list-style: none;
+}
+.inline-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.inline-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 152px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  z-index: 50;
+  display: none;
+}
+
+.inline-menu[open] .inline-menu-panel {
+  display: block;
+}
+
+.inline-menu-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 7px 8px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.inline-menu-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.menu-btn {
+  width: 24px;
+  height: 24px;
+}
+
+.archived-search-label {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.toast {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toast-action {
+  border: none;
+  background: none;
+  color: #fff;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
