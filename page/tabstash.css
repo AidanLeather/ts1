@@ -645,7 +645,7 @@ body {
 /* ── View header ─────────────────────────────────────── */
 .view-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
   padding: 16px 24px 6px;
   flex-shrink: 0;
@@ -684,6 +684,25 @@ body {
 .view-action-btn:hover {
   background: #f3f4f6;
   color: var(--text);
+}
+
+.sort-menu-btn {
+  min-width: 88px;
+}
+
+.sort-menu-panel {
+  min-width: 172px;
+  font-family: var(--font);
+}
+
+.collection-sort-item.active {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.collection-sort-item.active::before {
+  content: "✓";
+  margin-right: 6px;
 }
 
 /* ── Content ─────────────────────────────────────────── */
@@ -832,7 +851,8 @@ body {
 
 .col-actions {
   display: flex;
-  gap: 1px;
+  align-items: center;
+  gap: 8px;
   opacity: 0;
   transition: opacity var(--transition);
   flex-shrink: 0;
