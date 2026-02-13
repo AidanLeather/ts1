@@ -20,9 +20,12 @@
   --text: #1a1a1a;
   --text-secondary: #6b6b6b;
   --text-tertiary: #a0a0a0;
-  --accent: #404040;
-  --accent-hover: #2a2a2a;
-  --accent-selected: #f0f0f0;
+  --color-accent: #4E7A65;
+  --color-accent-hover: #3D6150;
+  --color-accent-light: #E8F0EC;
+  --accent: var(--color-accent);
+  --accent-hover: var(--color-accent-hover);
+  --accent-selected: var(--color-accent-light);
   --danger: #c53030;
   --danger-bg: #fff5f5;
   --tag-bg: #f0f0f0;
@@ -93,7 +96,7 @@ body {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #f97316;
+  background: #4E7A65;
   flex-shrink: 0;
 }
 
@@ -1525,8 +1528,11 @@ body {
   --background-selected: #f5f5f5;
   --border-subtle: #f0f0f0;
   --border-default: #e0e0e0;
-  --border-focus: #404040;
-  --accent: #404040;
+  --border-focus: var(--color-accent);
+  --color-accent: #4E7A65;
+  --color-accent-hover: #3D6150;
+  --color-accent-light: #E8F0EC;
+  --accent: var(--color-accent);
 }
 
 body { font-family: var(--font-sans); color: var(--text-primary); }
@@ -1701,7 +1707,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
   position: fixed;
   z-index: 1000;
   font-size: 11px;
-  background: #000;
+  background: var(--color-accent-hover);
   color: #fff;
   padding: 4px 8px;
   border-radius: var(--radius-sm);
