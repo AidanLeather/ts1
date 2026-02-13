@@ -614,9 +614,12 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   header.className = `collection-header${collapsible ? '' : ' collection-header--single'}${col.archived ? ' is-archived' : ''}`;
   const isArchivedView = state.currentView === 'archived';
 
+  const archivedToggleMenuItem = archivedTabs.length > 0
+    ? `<button class="inline-menu-item toggle-archived-tabs-btn">${showArchived ? 'Hide archived' : 'Show archived'}</button>`
+    : '';
   const collectionMenu = readOnly
     ? ''
-    : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item ${col.archived ? 'unarchive-col-btn' : 'archive-col-btn'}">${col.archived ? 'Unarchive collection' : 'Archive collection'}</button><button class="inline-menu-item delete-col-btn">Delete collection</button></div></details>`;
+    : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${archivedToggleMenuItem}<button class="inline-menu-item ${col.archived ? 'unarchive-col-btn' : 'archive-col-btn'}">${col.archived ? 'Unarchive collection' : 'Archive collection'}</button><button class="inline-menu-item delete-col-btn">Delete collection</button></div></details>`;
 
   const archivedNameLabel = readOnly && col.archived ? '<span class="archived-search-label">(archived)</span>' : '';
 
@@ -707,24 +710,14 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     body.appendChild(buildTabRow(tab, col.id, { inSearch: readOnly }));
   }
 
-  if (!readOnly && archivedTabs.length > 0) {
-    const toggle = document.createElement('button');
-    toggle.className = 'archived-toggle';
-    toggle.textContent = showArchived ? 'Hide archived' : `Show ${archivedTabs.length} archived`;
-    toggle.addEventListener('click', () => {
-      state.archivedExpanded[col.id] = !state.archivedExpanded[col.id];
-      render();
-    });
-    body.appendChild(toggle);
-
-    if (showArchived) {
-      const divider = document.createElement('div');
-      divider.className = 'archived-divider';
-      body.appendChild(divider);
-      for (const tab of archivedTabs) {
-        body.appendChild(buildTabRow(tab, col.id, { archived: true }));
+  if (!readOnly && archivedTabs.length > 0 && showArchived) {
+    archivedTabs.forEach((tab, index) => {
+      const row = buildTabRow(tab, col.id, { archived: true });
+      if (index === 0) {
+        row.classList.add('tab-row-archived-start');
       }
-    }
+      body.appendChild(row);
+    });
   }
 
   if (!collapsible && !readOnly && !isArchivedView) {
@@ -736,6 +729,12 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 }
 
 function bindCollectionActions(header, col, activeTabs, blockEl) {
+  header.querySelector('.toggle-archived-tabs-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    state.archivedExpanded[col.id] = !state.archivedExpanded[col.id];
+    render();
+  });
+
   header.querySelector('.restore-all-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     for (const t of activeTabs) {
@@ -1076,11 +1075,6 @@ function updateSidebar() {
   const isUnsorted = (col) => col.name === 'Unsorted';
   const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c) && !c.archived);
   const unpinned = state.collections.filter((c) => !c.isPinned && !isUnsorted(c) && !c.archived);
-  const archived = state.collections.filter((c) => c.archived);
-
-  const archivedNavCount = $('#nav-archived-count');
-  if (archivedNavCount) archivedNavCount.textContent = archived.length ? `(${archived.length})` : '';
-
   const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
     label.className = 'sidebar-section-label';
