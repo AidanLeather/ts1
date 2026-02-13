@@ -71,6 +71,17 @@
           </div>
         </div>
         <div id="view-actions" class="view-actions hidden">
+          <details id="collection-sort-menu" class="inline-menu sort-menu hidden">
+            <summary class="view-action-btn sort-menu-btn" title="Sort collections">
+              Sort: <span id="collection-sort-label">Newest</span>
+            </summary>
+            <div class="inline-menu-panel sort-menu-panel">
+              <button class="inline-menu-item collection-sort-item" data-sort="newest" role="menuitemradio">Newest first</button>
+              <button class="inline-menu-item collection-sort-item" data-sort="oldest" role="menuitemradio">Oldest first</button>
+              <button class="inline-menu-item collection-sort-item" data-sort="az" role="menuitemradio">Alphabetical (A–Z)</button>
+              <button class="inline-menu-item collection-sort-item" data-sort="za" role="menuitemradio">Alphabetical (Z–A)</button>
+            </div>
+          </details>
           <button id="collapse-all-btn" class="view-action-btn">Collapse all</button>
           <button id="expand-all-btn" class="view-action-btn">Expand all</button>
         </div>

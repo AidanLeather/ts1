@@ -48,6 +48,12 @@ let dragState = {
 const RECENT_SEARCHES_KEY = 'recentSearches';
 let inlineEditSession = null;
 let inlineInputModalSession = null;
+const COLLECTION_SORT_OPTIONS = [
+  { value: 'newest', label: 'Newest', menuLabel: 'Newest first' },
+  { value: 'oldest', label: 'Oldest', menuLabel: 'Oldest first' },
+  { value: 'az', label: 'A–Z', menuLabel: 'Alphabetical (A–Z)' },
+  { value: 'za', label: 'Z–A', menuLabel: 'Alphabetical (Z–A)' },
+];
 
 function getAccordionState() {
   return state.settings.accordionState || {};
@@ -76,9 +82,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function loadData() {
   try {
     const data = await WhyTabStorage.getAll();
-    state.collections = WhyTabStorage.sortCollections(data.collections);
-    state.urlIndex = data.urlIndex;
     state.settings = data.settings;
+    state.collections = getCollectionsForDisplay(data.collections, state.settings.collectionSort);
+    state.urlIndex = data.urlIndex;
     console.log(`[WhyTab] Loaded ${state.collections.length} collections`);
   } catch (err) {
     console.error('[WhyTab] loadData error:', err);
@@ -270,10 +276,65 @@ function bindEvents() {
     render();
   });
 
+  const sortMenu = $('#collection-sort-menu');
+  sortMenu?.querySelectorAll('.collection-sort-item').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const nextSort = btn.dataset.sort;
+      if (!nextSort || nextSort === state.settings.collectionSort) {
+        sortMenu.removeAttribute('open');
+        return;
+      }
+      await saveCollectionSortPreference(nextSort);
+      sortMenu.removeAttribute('open');
+      await loadData();
+      render();
+    });
+  });
+
   document.addEventListener('click', (e) => {
+    if (!e.target.closest('.inline-menu')) {
+      $$('.inline-menu[open]').forEach((menu) => menu.removeAttribute('open'));
+    }
     if (!e.target.closest('.search-bar')) {
       closeSearchPanel();
     }
+  });
+}
+
+function getCollectionsForDisplay(collections, sortMode) {
+  const pinned = collections.filter((c) => c.isPinned);
+  const unpinnedActive = WhyTabStorage.sortCollections(
+    collections.filter((c) => !c.isPinned && !c.archived),
+    sortMode,
+  );
+  const archived = collections.filter((c) => c.archived);
+  return [...pinned, ...unpinnedActive, ...archived];
+}
+
+async function saveCollectionSortPreference(sortMode) {
+  await WhyTabStorage.saveSettings({
+    ...state.settings,
+    collectionSort: sortMode,
+  });
+  state.settings.collectionSort = sortMode;
+}
+
+function getSortMeta(sortMode = 'newest') {
+  return COLLECTION_SORT_OPTIONS.find((opt) => opt.value === sortMode) || COLLECTION_SORT_OPTIONS[0];
+}
+
+function renderSortControl() {
+  const sortLabel = $('#collection-sort-label');
+  if (!sortLabel) return;
+  const activeSort = state.settings.collectionSort || 'newest';
+  const activeMeta = getSortMeta(activeSort);
+  sortLabel.textContent = activeMeta.label;
+  $$('.collection-sort-item').forEach((item) => {
+    const isActive = item.dataset.sort === activeSort;
+    item.classList.toggle('active', isActive);
+    item.setAttribute('aria-checked', String(isActive));
   });
 }
 
@@ -762,7 +823,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     : '';
   const collectionMenu = readOnly
     ? ''
-    : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${archivedToggleMenuItem}<button class="inline-menu-item ${col.archived ? 'unarchive-col-btn' : 'archive-col-btn'}">${col.archived ? 'Unarchive collection' : 'Archive collection'}</button><button class="inline-menu-item delete-col-btn">Delete collection</button></div></details>`;
+    : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${archivedToggleMenuItem}<button class="inline-menu-item delete-col-btn">Delete collection</button></div></details>`;
 
   const archivedNameLabel = readOnly && col.archived ? '<span class="archived-search-label">(archived)</span>' : '';
 
@@ -780,6 +841,11 @@ function buildCollectionBlock(col, readOnly, collapsible) {
       </button>
       <button class="icon-btn pin-btn" title="${col.isPinned ? 'Unpin' : 'Pin'}">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="${col.isPinned ? 'currentColor' : 'none'}" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn archive-col-btn" title="${col.archived ? 'Unarchive' : 'Archive'}">
+        ${col.archived
+          ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 9V5.5M6.5 5.5L4.8 7.2M6.5 5.5L8.2 7.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+          : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 5V8.5M6.5 8.5L4.8 6.8M6.5 8.5L8.2 6.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'}
       </button>
       ${collectionMenu}
     </div>`}
@@ -939,19 +1005,18 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
 
   header.querySelector('.archive-col-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await archiveCollectionWithUndo(col.id, true);
-  });
-
-  header.querySelector('.unarchive-col-btn')?.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    await WhyTabStorage.setCollectionArchived(col.id, false);
-    await loadData();
-    if (state.currentView === 'archived') {
-      render();
-    } else {
-      state.currentView = 'all';
-      render();
+    if (col.archived) {
+      await WhyTabStorage.setCollectionArchived(col.id, false);
+      await loadData();
+      if (state.currentView === 'archived') {
+        render();
+      } else {
+        state.currentView = 'all';
+        render();
+      }
+      return;
     }
+    await archiveCollectionWithUndo(col.id, true);
   });
 
   header.querySelector('.delete-col-btn')?.addEventListener('click', async (e) => {
@@ -1507,6 +1572,10 @@ function updateViewHeader() {
   const title = $('#view-title');
   const count = $('#view-count');
   const actions = $('#view-actions');
+  const sortControl = $('#collection-sort-menu');
+  const showSortControl = state.currentView === 'all' && !state.searchQuery.trim();
+  sortControl?.classList.toggle('hidden', !showSortControl);
+  renderSortControl();
 
   if (state.searchQuery.trim()) {
     viewHeader.classList.remove('hidden');
