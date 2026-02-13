@@ -686,8 +686,21 @@ body {
   color: var(--text);
 }
 
+.view-actions-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 10px;
+}
+
+.sort-menu {
+  display: inline-flex;
+  align-items: center;
+}
+
 .sort-menu-btn {
-  min-width: 88px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .sort-menu-panel {

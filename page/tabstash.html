@@ -71,6 +71,9 @@
           </div>
         </div>
         <div id="view-actions" class="view-actions hidden">
+          <button id="collapse-all-btn" class="view-action-btn">Collapse all</button>
+          <button id="expand-all-btn" class="view-action-btn">Expand all</button>
+          <span id="collection-sort-divider" class="view-actions-divider hidden" aria-hidden="true"></span>
           <details id="collection-sort-menu" class="inline-menu sort-menu hidden">
             <summary class="view-action-btn sort-menu-btn" title="Sort collections">
               Sort: <span id="collection-sort-label">Newest</span>
@@ -82,8 +85,6 @@
               <button class="inline-menu-item collection-sort-item" data-sort="za" role="menuitemradio">Alphabetical (Z–A)</button>
             </div>
           </details>
-          <button id="collapse-all-btn" class="view-action-btn">Collapse all</button>
-          <button id="expand-all-btn" class="view-action-btn">Expand all</button>
         </div>
       </header>
 
@@ -179,6 +180,18 @@
             </div>
             <label class="setting-switch">
               <input id="setting-contextual-auto-titles" type="checkbox">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-group">
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">Show sort control</div>
+              <div class="setting-desc">Display a sort option in the toolbar to reorder collections.</div>
+            </div>
+            <label class="setting-switch">
+              <input id="setting-show-sort-control" type="checkbox">
               <span class="slider"></span>
             </label>
           </div>

@@ -1573,8 +1573,10 @@ function updateViewHeader() {
   const count = $('#view-count');
   const actions = $('#view-actions');
   const sortControl = $('#collection-sort-menu');
-  const showSortControl = state.currentView === 'all' && !state.searchQuery.trim();
+  const sortDivider = $('#collection-sort-divider');
+  const showSortControl = state.currentView === 'all' && !state.searchQuery.trim() && Boolean(state.settings.showSortControl);
   sortControl?.classList.toggle('hidden', !showSortControl);
+  sortDivider?.classList.toggle('hidden', !showSortControl);
   renderSortControl();
 
   if (state.searchQuery.trim()) {
@@ -1690,6 +1692,9 @@ function openSettings() {
   const contextualTitlesEl = $('#setting-contextual-auto-titles');
   contextualTitlesEl.checked = Boolean(s.useContextualAutoTitles);
 
+  const showSortControlEl = $('#setting-show-sort-control');
+  showSortControlEl.checked = Boolean(s.showSortControl);
+
   replaceWithClone('#setting-show-item-urls', async (el) => {
     try {
       await WhyTabStorage.saveSettings({ ...state.settings, showItemUrls: el.checked });
@@ -1705,6 +1710,17 @@ function openSettings() {
     try {
       await WhyTabStorage.saveSettings({ ...state.settings, useContextualAutoTitles: el.checked });
       state.settings = await WhyTabStorage.getSettings();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[WhyTab] save settings error:', err);
+    }
+  }, 'change');
+
+  replaceWithClone('#setting-show-sort-control', async (el) => {
+    try {
+      await WhyTabStorage.saveSettings({ ...state.settings, showSortControl: el.checked });
+      state.settings = await WhyTabStorage.getSettings();
+      render();
       showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
