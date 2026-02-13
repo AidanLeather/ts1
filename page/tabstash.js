@@ -1249,11 +1249,24 @@ function openSettings() {
   const showUrlsEl = $('#setting-show-item-urls');
   showUrlsEl.checked = Boolean(s.showItemUrls);
 
+  const contextualTitlesEl = $('#setting-contextual-auto-titles');
+  contextualTitlesEl.checked = Boolean(s.useContextualAutoTitles);
+
   replaceWithClone('#setting-show-item-urls', async (el) => {
     try {
       await WhyTabStorage.saveSettings({ ...state.settings, showItemUrls: el.checked });
       state.settings = await WhyTabStorage.getSettings();
       render();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[WhyTab] save settings error:', err);
+    }
+  }, 'change');
+
+  replaceWithClone('#setting-contextual-auto-titles', async (el) => {
+    try {
+      await WhyTabStorage.saveSettings({ ...state.settings, useContextualAutoTitles: el.checked });
+      state.settings = await WhyTabStorage.getSettings();
       showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
