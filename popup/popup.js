@@ -18,6 +18,7 @@
 
 const $ = (sel) => document.querySelector(sel);
 let _saving = false; // double-click guard
+let _settings = null;
 
 const TITLE_STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
@@ -44,6 +45,7 @@ const FRIENDLY_DOMAINS = {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await initAccordionState();
+  _settings = await WhyTabStorage.getSettings();
 
   // ── Primary: Save and close all tabs ──────────────────
   $('#save-close-btn').addEventListener('click', () =>
@@ -165,7 +167,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       const createdAt = Date.now();
-      const fallbackName = formatName(new Date(createdAt));
+      const fallbackName = _settings?.useContextualAutoTitles
+        ? formatName(new Date(createdAt))
+        : formatClassicTimeOfDayName(new Date(createdAt));
       const name = active.title?.trim() || fallbackName;
       const options = active.title?.trim()
         ? {}
@@ -292,9 +296,19 @@ function formatName(d = new Date()) {
   return WhyTabTime.formatWeekdayTimeName(d);
 }
 
+function formatClassicTimeOfDayName(date = new Date()) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[date.getMonth()]} ${date.getDate()} ${WhyTabTime.timeOfDayLabel(date)}`;
+}
+
 function generateSessionCollectionTitle(tabs, createdAt = Date.now()) {
   const timestamp = formatName(new Date(createdAt));
+  const classicTimestamp = formatClassicTimeOfDayName(new Date(createdAt));
   const usableTabs = tabs.filter((tab) => typeof tab.url === 'string');
+
+  if (!_settings?.useContextualAutoTitles) {
+    return { name: classicTimestamp, autoTitleType: 'timeOfDay' };
+  }
 
   if (usableTabs.length === 1) {
     const oneTitle = (usableTabs[0].title || '').trim() || usableTabs[0].url;

@@ -6,18 +6,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const settings = await WhyTabStorage.getSettings();
 
   const showItemUrls = document.getElementById('show-item-urls');
+  const useContextualAutoTitles = document.getElementById('use-contextual-auto-titles');
   const exportBtn = document.getElementById('export-btn');
   const clearBtn = document.getElementById('clear-btn');
 
   // Populate
   showItemUrls.checked = Boolean(settings.showItemUrls);
+  useContextualAutoTitles.checked = Boolean(settings.useContextualAutoTitles);
 
   showItemUrls.addEventListener('change', save);
+  useContextualAutoTitles.addEventListener('change', save);
 
   async function save() {
     await WhyTabStorage.saveSettings({
       ...settings,
       showItemUrls: showItemUrls.checked,
+      useContextualAutoTitles: useContextualAutoTitles.checked,
     });
     showToast('Saved');
   }
