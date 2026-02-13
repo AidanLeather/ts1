@@ -19,6 +19,29 @@
 const $ = (sel) => document.querySelector(sel);
 let _saving = false; // double-click guard
 
+const TITLE_STOP_WORDS = new Set([
+  'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
+  'is', 'it', 'this', 'that', 'are', 'was', 'were', 'be', 'been', 'has', 'have', 'had', 'do', 'does',
+  'did', 'will', 'would', 'could', 'should', 'can', 'may', 'not', 'no', 'so', 'if', 'as', 'into',
+  'than', 'its', 'our', 'my', 'your', 'how', 'what', 'when', 'where', 'who', 'which', 'why', 'all',
+  'each', 'new', 'about', 'up', 'out', 'just', 'more', 'also', 'get', 'one', 'two', 'like', 'make',
+  'over', 'such', 'after', 'before', 'between', 'through', 'during', 'only', 'other', 'some', 'them',
+  'then', 'these', 'those', 'very', 'most', 'own', 'same', 'both', 'few', 'any', 'many', 'us', 'home',
+  'page', 'site', 'app', 'web', 'online', 'free', 'best', 'top', 'official', 'welcome', 'log', 'sign',
+  'dashboard', 'untitled', 'contact', 'null', 'undefined',
+]);
+
+const FRIENDLY_DOMAINS = {
+  'github.com': 'GitHub',
+  'dribbble.com': 'Dribbble',
+  'youtube.com': 'YouTube',
+  'google.com': 'Google',
+  'stackoverflow.com': 'Stack Overflow',
+  'reddit.com': 'Reddit',
+  'twitter.com': 'Twitter',
+  'x.com': 'X',
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
   await initAccordionState();
 
@@ -37,10 +60,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`[WhyTab popup] Saving ${saveable.length} tabs...`);
 
       const createdAt = Date.now();
-      const name = formatName(new Date(createdAt));
+      const generated = generateSessionCollectionTitle(saveable, createdAt);
+      const name = generated.name;
       const col = await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
-        autoTitleType: 'timeOfDay',
+        autoTitleType: generated.autoTitleType,
       });
       console.log(`[WhyTab popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
@@ -119,10 +143,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`[WhyTab popup] Saving ${saveable.length} tabs (keep open)...`);
 
       const createdAt = Date.now();
-      const name = formatName(new Date(createdAt));
+      const generated = generateSessionCollectionTitle(saveable, createdAt);
+      const name = generated.name;
       const col = await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
-        autoTitleType: 'timeOfDay',
+        autoTitleType: generated.autoTitleType,
       });
       console.log(`[WhyTab popup] Saved collection "${name}" (${col.id})`);
 
@@ -265,6 +290,117 @@ async function runWithSaving(btn, action) {
 
 function formatName(d = new Date()) {
   return WhyTabTime.formatWeekdayTimeName(d);
+}
+
+function generateSessionCollectionTitle(tabs, createdAt = Date.now()) {
+  const timestamp = formatName(new Date(createdAt));
+  const usableTabs = tabs.filter((tab) => typeof tab.url === 'string');
+
+  if (usableTabs.length === 1) {
+    const oneTitle = (usableTabs[0].title || '').trim() || usableTabs[0].url;
+    return { name: truncateTitle(oneTitle, 50), autoTitleType: 'singleTab' };
+  }
+
+  if (usableTabs.length && usableTabs.every((tab) => isInternalOnlyUrl(tab.url))) {
+    return { name: timestamp, autoTitleType: 'timeOfDay' };
+  }
+
+  const domainTitle = buildDomainTitle(usableTabs, timestamp);
+  if (domainTitle) return { name: domainTitle, autoTitleType: 'domainCluster' };
+
+  const keywordTitle = buildKeywordTitle(usableTabs, timestamp);
+  if (keywordTitle) return { name: keywordTitle, autoTitleType: 'keywordCluster' };
+
+  return { name: timestamp, autoTitleType: 'timeOfDay' };
+}
+
+function buildDomainTitle(tabs, timestamp) {
+  const hosts = tabs
+    .map((tab) => getNormalizedHostname(tab.url))
+    .filter(Boolean);
+  if (!hosts.length) return null;
+
+  const counts = new Map();
+  for (const host of hosts) counts.set(host, (counts.get(host) || 0) + 1);
+
+  const [topHost, topCount] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] || [];
+  if (!topHost || !topCount) return null;
+
+  const ratio = topCount / tabs.length;
+  if (ratio < 0.4) return null;
+
+  const domainLabel = formatDomainLabel(topHost);
+  if (ratio >= 0.75) return `${domainLabel} — ${timestamp}`;
+  return `Mostly ${domainLabel} — ${timestamp}`;
+}
+
+function buildKeywordTitle(tabs, timestamp) {
+  const freq = new Map();
+  const inTitleCount = new Map();
+
+  for (const tab of tabs) {
+    const words = extractMeaningfulWords(tab.title || tab.url || '');
+    const uniqueWords = new Set(words);
+    for (const word of words) freq.set(word, (freq.get(word) || 0) + 1);
+    for (const word of uniqueWords) inTitleCount.set(word, (inTitleCount.get(word) || 0) + 1);
+  }
+
+  const recurringWords = [...freq.entries()]
+    .filter(([word]) => (inTitleCount.get(word) || 0) >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .map(([word]) => word);
+
+  if (!recurringWords.length) return null;
+
+  if (recurringWords.length === 1) {
+    return `${capitalizeWord(recurringWords[0])} — ${timestamp}`;
+  }
+
+  return `${capitalizeWord(recurringWords[0])}, ${capitalizeWord(recurringWords[1])} — ${timestamp}`;
+}
+
+function extractMeaningfulWords(title) {
+  return title
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => {
+      if (!word || word.length <= 1) return false;
+      if (/^\d+$/.test(word)) return false;
+      return !TITLE_STOP_WORDS.has(word);
+    });
+}
+
+function getNormalizedHostname(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+    return parsed.hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function isInternalOnlyUrl(url) {
+  return typeof url === 'string' && (
+    url.startsWith('about:')
+    || url.startsWith('chrome://')
+    || url.startsWith('chrome-extension://')
+  );
+}
+
+function formatDomainLabel(hostname) {
+  const friendly = FRIENDLY_DOMAINS[hostname];
+  if (friendly) return friendly;
+  return hostname;
+}
+
+function capitalizeWord(word) {
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+function truncateTitle(title, maxLength) {
+  if (!title || title.length <= maxLength) return title;
+  return `${title.slice(0, maxLength - 1).trimEnd()}…`;
 }
 
 function showStatus(msg) {
