@@ -114,6 +114,11 @@ function bindEvents() {
   // Search
   $('#search').addEventListener('input', (e) => {
     state.searchQuery = e.target.value;
+    if (!state.searchQuery.trim()) {
+      setSearchFocusState(false);
+    } else if (document.activeElement === $('#search')) {
+      setSearchFocusState(true);
+    }
     render();
   });
   $('#search-clear-btn')?.addEventListener('click', () => {
@@ -121,6 +126,7 @@ function bindEvents() {
     $('#search').value = '';
     render();
     $('#search').focus();
+    setSearchFocusState(false);
   });
   $('#search').addEventListener('focus', () => {
     openSearchPanel();
@@ -1465,11 +1471,17 @@ function openSearchPanel() {
   loadRecentSearches().then(() => updateSearchPanel());
   $('#search-panel').classList.remove('hidden');
   $('.search-bar').classList.add('is-focused');
+  setSearchFocusState(true);
 }
 
 function closeSearchPanel() {
   $('#search-panel').classList.add('hidden');
   $('.search-bar').classList.remove('is-focused');
+  setSearchFocusState(false);
+}
+
+function setSearchFocusState(isFocused) {
+  $('.app')?.classList.toggle('search-focused', isFocused);
 }
 
 function updateSearchPanel() {

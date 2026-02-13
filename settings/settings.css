@@ -18,7 +18,9 @@
   --accent-hover: #2a2a2a;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
-  --radius: 8px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
   --transition: 150ms ease;
 }
 
@@ -59,7 +61,7 @@ header h1::before {
 .section {
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   padding: 20px;
   margin-bottom: 16px;
 }
@@ -90,7 +92,7 @@ header h1::before {
   width: 40px;
   height: 22px;
   background: #ccc;
-  border-radius: 11px;
+  border-radius: var(--radius-lg);
   position: relative;
   transition: background var(--transition);
 }
@@ -129,7 +131,7 @@ header h1::before {
   width: 64px;
   padding: 5px 8px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 14px;
   text-align: center;
   outline: none;
@@ -151,7 +153,7 @@ header h1::before {
 .btn {
   padding: 8px 14px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -182,7 +184,7 @@ header h1::before {
   background: var(--text);
   color: #fff;
   padding: 8px 18px;
-  border-radius: 20px;
+  border-radius: var(--radius-lg);
   font-size: 13px;
   font-weight: 500;
   opacity: 0;
