@@ -169,3 +169,29 @@ body {
 .hidden {
   display: none;
 }
+
+.btn-label {
+  transition: opacity 150ms ease;
+}
+
+.label-fade-out {
+  opacity: 0;
+}
+
+.popup-btn.is-saving,
+.popup-row.is-saving {
+  pointer-events: none;
+}
+
+#save-close-btn {
+  min-height: 38px;
+}
+
+.popup-btn:disabled,
+.popup-row:disabled {
+  opacity: 1;
+}
+
+.btn-label {
+  display: inline-block;
+}
