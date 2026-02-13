@@ -1126,6 +1126,11 @@ body {
   backdrop-filter: blur(2px);
 }
 
+.modal-backdrop-soft {
+  background: rgba(0, 0, 0, 0.15);
+  backdrop-filter: none;
+}
+
 .modal-dialog {
   position: relative;
   background: var(--bg);
@@ -1141,6 +1146,71 @@ body {
 
 .modal-wide {
   width: 480px;
+}
+
+.modal-compact {
+  width: min(340px, calc(100vw - 32px));
+}
+
+.inline-input-modal-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.inline-input-modal-body h3 {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.inline-input-modal-field {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font: 500 14px/1.2 var(--font);
+  color: var(--text);
+  outline: none;
+}
+
+.inline-input-modal-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(78, 122, 101, 0.16);
+}
+
+.inline-input-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.inline-input-modal-confirm,
+.inline-input-modal-cancel {
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  font: 500 13px/1 var(--font);
+  border: none;
+  cursor: pointer;
+}
+
+.inline-input-modal-confirm {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.inline-input-modal-confirm:hover {
+  background: var(--color-accent-hover);
+}
+
+.inline-input-modal-cancel {
+  background: #f3f3f3;
+  color: var(--text-secondary);
+}
+
+.inline-input-modal-cancel:hover {
+  background: #ebebeb;
+  color: var(--text);
 }
 
 @keyframes modal-in {
@@ -1837,6 +1907,35 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 .menu-btn {
   width: 24px;
   height: 24px;
+}
+
+.tab-inline-input {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid rgba(78, 122, 101, 0.4);
+  border-radius: 0;
+  outline: none;
+  background: var(--color-accent-light);
+  color: var(--text);
+  font-family: var(--font);
+  padding: 0 2px;
+}
+
+.tab-inline-input-title {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.tab-inline-input-url {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.tab-url-edit-slot {
+  width: 100%;
 }
 
 .archived-search-label {

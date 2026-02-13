@@ -38,6 +38,8 @@ let dragState = {
 };
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
+let inlineEditSession = null;
+let inlineInputModalSession = null;
 
 function getAccordionState() {
   return state.settings.accordionState || {};
@@ -156,7 +158,7 @@ function bindEvents() {
   });
 
   $$('.search-chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
+    chip.addEventListener('click', async () => {
       const filter = chip.dataset.filter;
       if (filter === 'pinned') {
         state.searchFilters.pinnedOnly = !state.searchFilters.pinnedOnly;
@@ -166,7 +168,12 @@ function bindEvents() {
         if (state.searchFilters.domain) {
           state.searchFilters.domain = '';
         } else {
-          const domain = prompt('Filter by domain (e.g. example.com):');
+          const domain = await openInlineInputModal({
+            title: 'Filter by domain',
+            placeholder: 'example.com',
+            confirmLabel: 'Apply',
+            initialValue: state.searchFilters.domain,
+          });
           if (domain && domain.trim()) {
             state.searchFilters.domain = domain.trim();
           }
@@ -191,7 +198,11 @@ function bindEvents() {
 
   // New collection
   $('#new-collection-btn').addEventListener('click', async () => {
-    const name = prompt('Collection name:');
+    const name = await openInlineInputModal({
+      title: 'New collection',
+      placeholder: 'Collection name',
+      confirmLabel: 'Create',
+    });
     if (name && name.trim()) {
       try {
         const col = await WhyTabStorage.addCollection(name.trim(), []);
@@ -212,6 +223,22 @@ function bindEvents() {
   // Move modal
   $('#move-close-btn').addEventListener('click', closeMoveModal);
   $('#move-modal .modal-backdrop').addEventListener('click', closeMoveModal);
+
+  // Inline input modal
+  $('#inline-input-modal-cancel').addEventListener('click', closeInlineInputModal);
+  $('#inline-input-modal .modal-backdrop').addEventListener('click', closeInlineInputModal);
+  $('#inline-input-modal-confirm').addEventListener('click', submitInlineInputModal);
+  $('#inline-input-modal-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      submitInlineInputModal();
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeInlineInputModal();
+    }
+  });
 
   // Command palette
   $('#command-palette .modal-backdrop').addEventListener('click', closePalette);
@@ -916,7 +943,7 @@ function buildTabRow(tab, collectionId, options = {}) {
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
       </button>
       <button class="icon-btn archive-tab-btn" title="${archiveTitle}">${archiveIcon}</button>
-      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button></div></details>
+      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item edit-title-btn">Edit title</button><button class="inline-menu-item edit-url-btn">Edit URL</button><button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button></div></details>
     </div>
   `;
 
@@ -979,29 +1006,9 @@ function buildTabRow(tab, collectionId, options = {}) {
     return row;
   }
 
-  row.querySelector('.edit-btn').addEventListener('click', async () => {
-    const nextTitle = prompt('Edit tab title:', tab.title);
-    if (nextTitle === null) return;
-    const nextUrlRaw = prompt('Edit tab URL:', tab.url);
-    if (nextUrlRaw === null) return;
-    const nextUrl = nextUrlRaw.trim();
-    if (!nextUrl) {
-      showToast('URL required');
-      return;
-    }
-    const finalUrl = nextUrl.match(/^https?:\/\//) ? nextUrl : `https://${nextUrl}`;
-    try {
-      await WhyTabStorage.updateTab(tab.id, {
-        title: nextTitle.trim() || finalUrl,
-        url: finalUrl,
-      });
-      await loadData();
-      render();
-    } catch (err) {
-      console.error('[WhyTab] updateTab error:', err);
-      showToast('Error updating tab');
-    }
-  });
+  row.querySelector('.edit-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'title'));
+  row.querySelector('.edit-title-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'title'));
+  row.querySelector('.edit-url-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'url'));
 
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
     try {
@@ -1062,6 +1069,134 @@ function buildTabRow(tab, collectionId, options = {}) {
   });
 
   return row;
+}
+
+async function startInlineTabEdit(row, tab, field) {
+  await flushInlineEdit();
+
+  const target = field === 'title' ? row.querySelector('.tab-title') : row.querySelector('.tab-url');
+  let mountPoint = target;
+  if (!mountPoint && field === 'url') {
+    mountPoint = document.createElement('div');
+    mountPoint.className = 'tab-url tab-url-edit-slot';
+    row.querySelector('.tab-info')?.appendChild(mountPoint);
+  }
+  if (!mountPoint) return;
+
+  const originalValue = field === 'title' ? (tab.title || '') : (tab.url || '');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = `tab-inline-input ${field === 'title' ? 'tab-inline-input-title' : 'tab-inline-input-url'}`;
+  input.value = originalValue;
+  input.setAttribute('aria-label', field === 'title' ? 'Edit title' : 'Edit URL');
+
+  mountPoint.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let finished = false;
+  const finish = async ({ save }) => {
+    if (finished) return;
+    finished = true;
+    inlineEditSession = null;
+
+    const nextRaw = input.value;
+    let nextVal = nextRaw;
+    if (field === 'url') {
+      const trimmed = nextRaw.trim();
+      if (!trimmed) {
+        showToast('URL required');
+        save = false;
+      }
+      nextVal = trimmed.match(/^https?:\/\//) ? trimmed : `https://${trimmed}`;
+    }
+
+    if (save) {
+      try {
+        if (field === 'title' && nextRaw.trim() !== originalValue.trim()) {
+          await WhyTabStorage.updateTab(tab.id, { title: nextRaw.trim() || tab.url });
+          await loadData();
+        }
+        if (field === 'url' && nextVal !== originalValue) {
+          await WhyTabStorage.updateTab(tab.id, {
+            url: nextVal,
+            title: tab.title?.trim() || nextVal,
+          });
+          await loadData();
+        }
+      } catch (err) {
+        console.error('[WhyTab] inline updateTab error:', err);
+        showToast('Error updating tab');
+      }
+    }
+
+    render();
+  };
+
+  inlineEditSession = {
+    save: () => finish({ save: true }),
+    cancel: () => finish({ save: false }),
+  };
+
+  input.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      finish({ save: true });
+    }
+    if (ev.key === 'Escape') {
+      ev.preventDefault();
+      finish({ save: false });
+    }
+  });
+  input.addEventListener('blur', () => finish({ save: true }));
+}
+
+async function flushInlineEdit() {
+  if (!inlineEditSession) return;
+  await inlineEditSession.save();
+}
+
+function openInlineInputModal({ title, placeholder, confirmLabel, initialValue = '' }) {
+  closeInlineInputModal();
+  const modal = $('#inline-input-modal');
+  const titleEl = $('#inline-input-modal-title');
+  const inputEl = $('#inline-input-modal-input');
+  const confirmEl = $('#inline-input-modal-confirm');
+  titleEl.textContent = title;
+  inputEl.placeholder = placeholder || '';
+  confirmEl.textContent = confirmLabel || 'Create';
+  inputEl.value = initialValue;
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+  setTimeout(() => inputEl.focus(), 0);
+  inputEl.select();
+
+  return new Promise((resolve) => {
+    inlineInputModalSession = { resolve };
+  });
+}
+
+function submitInlineInputModal() {
+  if (!inlineInputModalSession) return;
+  const value = $('#inline-input-modal-input').value;
+  const { resolve } = inlineInputModalSession;
+  inlineInputModalSession = null;
+  $('#inline-input-modal').classList.add('hidden');
+  $('#inline-input-modal').setAttribute('aria-hidden', 'true');
+  resolve(value);
+}
+
+function closeInlineInputModal() {
+  if (!inlineInputModalSession) {
+    $('#inline-input-modal').classList.add('hidden');
+    $('#inline-input-modal').setAttribute('aria-hidden', 'true');
+    return;
+  }
+  const { resolve } = inlineInputModalSession;
+  inlineInputModalSession = null;
+  $('#inline-input-modal').classList.add('hidden');
+  $('#inline-input-modal').setAttribute('aria-hidden', 'true');
+  resolve(null);
 }
 
 // ── Sidebar ────────────────────────────────────────────
@@ -1386,7 +1521,11 @@ const COMMANDS = [
   { label: 'Save & close tabs', action: () => saveAndCloseTabs() },
   { label: 'View all tabs', action: () => { state.currentView = 'all'; render(); }},
   { label: 'New collection', action: async () => {
-    const name = prompt('Collection name:');
+    const name = await openInlineInputModal({
+      title: 'New collection',
+      placeholder: 'Collection name',
+      confirmLabel: 'Create',
+    });
     if (name?.trim()) {
       const col = await WhyTabStorage.addCollection(name.trim(), []);
       await loadData(); state.currentView = col.id; render();

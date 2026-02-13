@@ -43,6 +43,18 @@
     <div id="toast" class="toast hidden">Saved</div>
   </div>
 
+  <div id="confirm-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h3>Clear all data?</h3>
+      <p>This will permanently delete all saved tabs and collections.</p>
+      <div class="modal-actions">
+        <button id="confirm-clear-btn" class="btn btn-danger">Delete</button>
+        <button id="cancel-clear-btn" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <script src="../lib/storage.js"></script>
   <script src="settings.js"></script>
 </body>
