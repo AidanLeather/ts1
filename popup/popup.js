@@ -18,7 +18,6 @@
 
 const $ = (sel) => document.querySelector(sel);
 let _saving = false; // double-click guard
-const SAVED_BUTTON_HOLD_MS = 1200;
 
 document.addEventListener('DOMContentLoaded', async () => {
   await initAccordionState();
@@ -38,12 +37,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`[WhyTab popup] Saving ${saveable.length} tabs...`);
 
       const createdAt = Date.now();
-      const titleMeta = WhyTabTime.generateSessionCollectionTitle(saveable, new Date(createdAt));
-      const col = await WhyTabStorage.addCollection(titleMeta.name, saveable, {
+      const name = formatName(new Date(createdAt));
+      const col = await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
-        autoTitleType: titleMeta.autoTitleType,
+        autoTitleType: 'timeOfDay',
       });
-      console.log(`[WhyTab popup] Saved collection "${titleMeta.name}" (${col.id}), ${saveable.length} tabs`);
+      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
       await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
 
@@ -72,10 +71,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const createdAt = Date.now();
-      const titleMeta = WhyTabTime.generateSessionCollectionTitle(saveable, new Date(createdAt));
-      await WhyTabStorage.addCollection(`${titleMeta.name} · Left`, saveable, {
+      const name = `${formatName(new Date(createdAt))} \u00b7 Left`;
+      await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
-        autoTitleType: titleMeta.autoTitleType,
+        autoTitleType: 'timeOfDay',
       });
       await closeTabs(leftTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the left`);
@@ -96,10 +95,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
 
       const createdAt = Date.now();
-      const titleMeta = WhyTabTime.generateSessionCollectionTitle(saveable, new Date(createdAt));
-      await WhyTabStorage.addCollection(`${titleMeta.name} · Right`, saveable, {
+      const name = `${formatName(new Date(createdAt))} \u00b7 Right`;
+      await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
-        autoTitleType: titleMeta.autoTitleType,
+        autoTitleType: 'timeOfDay',
       });
       await closeTabs(rightTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the right`);
@@ -120,12 +119,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log(`[WhyTab popup] Saving ${saveable.length} tabs (keep open)...`);
 
       const createdAt = Date.now();
-      const titleMeta = WhyTabTime.generateSessionCollectionTitle(saveable, new Date(createdAt));
-      const col = await WhyTabStorage.addCollection(titleMeta.name, saveable, {
+      const name = formatName(new Date(createdAt));
+      const col = await WhyTabStorage.addCollection(name, saveable, {
         createdAt,
-        autoTitleType: titleMeta.autoTitleType,
+        autoTitleType: 'timeOfDay',
       });
-      console.log(`[WhyTab popup] Saved collection "${titleMeta.name}" (${col.id})`);
+      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id})`);
 
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
     })
@@ -141,11 +140,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
       const createdAt = Date.now();
-      const titleMeta = WhyTabTime.generateSessionCollectionTitle([active], new Date(createdAt));
-      await WhyTabStorage.addCollection(titleMeta.name, [active], {
-        createdAt,
-        autoTitleType: titleMeta.autoTitleType,
-      });
+      const fallbackName = formatName(new Date(createdAt));
+      const name = active.title?.trim() || fallbackName;
+      const options = active.title?.trim()
+        ? {}
+        : { createdAt, autoTitleType: 'timeOfDay' };
+      await WhyTabStorage.addCollection(name, [active], options);
       showStatus('Saved this tab');
     })
   );
@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await WhyTabStorage.addManualTab(collectionId, active.title || active.url, active.url);
       showStatus('Added tab to collection');
       $('#collection-picker').classList.add('hidden');
-    }, false)
+    })
   );
 
   // ── Tertiary: Open WhyTab ───────────────────────────
@@ -247,49 +247,25 @@ async function closeTabs(tabs) {
   }
 }
 
-async function runWithSaving(btn, action, showSavedState = true) {
+async function runWithSaving(btn, action) {
   if (_saving) return;
   _saving = true;
-  const labelEl = btn?.querySelector('.btn-label');
-  const originalLabel = btn ? (btn.dataset.originalLabel || labelEl?.textContent?.trim() || btn.textContent.trim()) : '';
-
-  if (btn) {
-    btn.dataset.originalLabel = originalLabel;
-    btn.classList.add('is-saving');
-    btn.disabled = true;
-  }
+  if (btn) btn.disabled = true;
 
   try {
     await action();
-    if (btn && showSavedState && labelEl) {
-      labelEl.classList.add('label-fade-out');
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      labelEl.textContent = 'Saved';
-      labelEl.classList.remove('label-fade-out');
-      btn.classList.add('is-saved');
-      await new Promise((resolve) => setTimeout(resolve, SAVED_BUTTON_HOLD_MS));
-      labelEl.classList.add('label-fade-out');
-      await new Promise((resolve) => setTimeout(resolve, 150));
-      labelEl.textContent = originalLabel;
-      labelEl.classList.remove('label-fade-out');
-    }
   } catch (err) {
     console.error('[WhyTab popup] Action failed:', err);
     showStatus('Error performing action');
   } finally {
-    if (btn) {
-      if (labelEl && labelEl.textContent !== originalLabel) {
-        labelEl.textContent = originalLabel;
-        labelEl.classList.remove('label-fade-out');
-      }
-      btn.classList.remove('is-saved');
-      btn.disabled = false;
-      btn.classList.remove('is-saving');
-    }
+    if (btn) btn.disabled = false;
     _saving = false;
   }
 }
 
+function formatName(d = new Date()) {
+  return WhyTabTime.formatWeekdayTimeName(d);
+}
 
 function showStatus(msg) {
   const el = $('#status');
