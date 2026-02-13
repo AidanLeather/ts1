@@ -37,8 +37,6 @@ let dragState = {
 };
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
-const SAVED_BUTTON_HOLD_MS = 1200;
-const SEARCH_COUNT_ANIMATION_MS = 400;
 
 function getAccordionState() {
   return state.settings.accordionState || {};
@@ -179,10 +177,10 @@ function bindEvents() {
   });
 
   // Save open tabs (sidebar link)
-  $('#save-tabs-btn').addEventListener('click', () => runWithSavedState($('#save-tabs-btn'), saveAndCloseTabs));
+  $('#save-tabs-btn').addEventListener('click', saveAndCloseTabs);
 
   // Empty state CTA
-  $('#empty-cta-btn')?.addEventListener('click', () => runWithSavedState($('#empty-cta-btn'), saveAllTabs));
+  $('#empty-cta-btn')?.addEventListener('click', saveAllTabs);
 
   // New collection
   $('#new-collection-btn').addEventListener('click', async () => {
@@ -296,27 +294,22 @@ async function closeTabs(tabs, pageUrl) {
 
 
 async function saveTabsToCollection(saveable, createdAt) {
-  const titleMeta = WhyTabTime.generateSessionCollectionTitle(saveable, new Date(createdAt));
+  const baseName = formatCollectionName(new Date(createdAt));
   const allCollections = await WhyTabStorage.getCollections();
+  const duplicate = allCollections.find((c) => c.autoTitleType === 'timeOfDay' && c.name === baseName);
 
-  if (titleMeta.timestampOnly) {
-    const duplicate = allCollections.find((c) => c.autoTitleType === 'timeOfDay' && c.name === titleMeta.name);
-    if (duplicate && Math.abs(createdAt - (duplicate.createdAt || createdAt)) <= (30 * 60 * 1000)) {
-      for (const tab of saveable) {
-        await WhyTabStorage.addManualTab(duplicate.id, tab.title || tab.url, tab.url);
-      }
-      return { name: duplicate.name, merged: true };
+  if (duplicate && Math.abs(createdAt - (duplicate.createdAt || createdAt)) <= (30 * 60 * 1000)) {
+    for (const tab of saveable) {
+      await WhyTabStorage.addManualTab(duplicate.id, tab.title || tab.url, tab.url);
     }
+    return { name: duplicate.name, merged: true };
   }
 
-  const hasSameName = allCollections.some((c) => c.name === titleMeta.name);
-  const name = hasSameName
-    ? WhyTabTime.formatSessionTimestampWithTime(new Date(createdAt))
-    : titleMeta.name;
-
+  const hasSameName = allCollections.some((c) => c.name === baseName);
+  const name = hasSameName ? formatCollectionNameWithTime(new Date(createdAt)) : baseName;
   await WhyTabStorage.addCollection(name, saveable, {
     createdAt,
-    autoTitleType: hasSameName ? undefined : titleMeta.autoTitleType,
+    autoTitleType: hasSameName ? undefined : 'timeOfDay',
   });
   return { name, merged: false };
 }
@@ -598,7 +591,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   header.className = `collection-header${collapsible ? '' : ' collection-header--single'}`;
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
-    <span class="${nameClass}">${col.isPinned ? '<span class="pinned-indicator" aria-hidden="true"></span>' : ''}${escHtml(col.name)}</span>
+    <span class="${nameClass}">${escHtml(col.name)}</span>
     <span class="collection-tab-count">${countText}</span>
     ${readOnly ? '' : `
     <div class="col-actions">
@@ -1065,7 +1058,7 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
 
   btn.innerHTML = `
     ${pinSvg}
-    <span class="sidebar-col-name ${col.autoTitleType ? 'auto-named' : 'user-named'}">${isPinned ? '<span class="pinned-indicator" aria-hidden="true"></span>' : ''}${escHtml(col.name)}</span>
+    <span class="sidebar-col-name ${col.autoTitleType ? 'auto-named' : 'user-named'}">${escHtml(col.name)}</span>
     ${countBadge}
     <span class="sidebar-col-actions">
       <button class="sidebar-hover-pin${isPinned ? ' sidebar-hover-pin-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
@@ -1443,43 +1436,9 @@ function hideUrlTooltip() {
 
 function updateSearchPlaceholder() {
   const input = $('#search');
-  const countEl = $('#search-count');
-  if (!input || !countEl) return;
-
+  if (!input) return;
   const total = state.collections.reduce((sum, col) => sum + col.tabs.length, 0);
-  const previous = Number(countEl.dataset.count || total);
-
-  if (total > previous) {
-    animateSearchCount(previous, total);
-  } else {
-    countEl.textContent = String(total);
-    countEl.dataset.count = String(total);
-  }
-}
-
-function animateSearchCount(from, to) {
-  const countEl = $('#search-count');
-  if (!countEl) return;
-
-  const start = performance.now();
-  const delta = to - from;
-
-  const tick = (now) => {
-    const progress = Math.min((now - start) / SEARCH_COUNT_ANIMATION_MS, 1);
-    const eased = 1 - Math.pow(1 - progress, 3);
-    const value = Math.round(from + (delta * eased));
-    countEl.textContent = String(value);
-    countEl.dataset.count = String(value);
-
-    if (progress < 1) {
-      requestAnimationFrame(tick);
-      return;
-    }
-    countEl.textContent = String(to);
-    countEl.dataset.count = String(to);
-  };
-
-  requestAnimationFrame(tick);
+  input.placeholder = `Search ${total} tabs...`;
 }
 
 function renderRecentSearches() {
@@ -1570,38 +1529,6 @@ function highlightPalette() {
   $$('.palette-item').forEach((el, i) => el.classList.toggle('selected', i === paletteSel));
 }
 
-
-async function runWithSavedState(button, action) {
-  if (!button || button.dataset.saving === '1') {
-    return;
-  }
-
-  const originalText = button.dataset.originalLabel || button.textContent.trim();
-  button.dataset.originalLabel = originalText;
-  button.dataset.saving = '1';
-  button.classList.add('is-saving');
-  button.disabled = true;
-
-  try {
-    await action();
-    button.classList.add('label-fade-out');
-    await new Promise((resolve) => setTimeout(resolve, 150));
-    button.textContent = 'Saved';
-    button.classList.remove('label-fade-out');
-    button.classList.add('is-saved');
-    await new Promise((resolve) => setTimeout(resolve, SAVED_BUTTON_HOLD_MS));
-    button.classList.add('label-fade-out');
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  } finally {
-    button.classList.remove('is-saved');
-    button.textContent = originalText;
-    button.classList.remove('label-fade-out');
-    button.disabled = false;
-    button.classList.remove('is-saving');
-    button.dataset.saving = '0';
-  }
-}
-
 // ── Toast ──────────────────────────────────────────────
 function showToast(msg) {
   const toast = $('#toast');
@@ -1618,11 +1545,15 @@ function showToast(msg) {
 
 // ── Helpers ────────────────────────────────────────────
 function formatCollectionName(d = new Date()) {
-  return WhyTabTime.formatSessionTimestamp(d);
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[d.getMonth()]} ${d.getDate()} ${WhyTabTime.timeOfDayLabel(d)}`;
 }
 
 function formatCollectionNameWithTime(d = new Date()) {
-  return WhyTabTime.formatSessionTimestampWithTime(d);
+  const hour = d.getHours() % 12 || 12;
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  const suffix = d.getHours() >= 12 ? 'pm' : 'am';
+  return `${formatCollectionName(d)} ${hour}:${mins}${suffix}`;
 }
 
 function formatPreciseTimestamp(ts) {
