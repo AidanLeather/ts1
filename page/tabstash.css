@@ -857,6 +857,45 @@ body {
   gap: 10px;
   border-radius: var(--radius-md);
   transition: background var(--transition);
+  cursor: grab;
+}
+.tab-row.drag-ready,
+.tab-row:active {
+  cursor: grabbing;
+}
+.tab-drag-handle {
+  width: 12px;
+  color: #c6ccd2;
+  opacity: 0;
+  transition: opacity 150ms ease;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.tab-row:hover .tab-drag-handle,
+.tab-row.drag-ready .tab-drag-handle {
+  opacity: 1;
+}
+.tab-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(21, 36, 27, 0.14);
+  opacity: 0.56;
+  max-width: 320px;
+}
+.tab-drag-ghost-title {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .tab-row:hover {
   background: #f9fafb;
@@ -866,7 +905,7 @@ body {
   outline-offset: -1px;
 }
 .tab-row.is-dragging {
-  opacity: 0.45;
+  opacity: 0.3;
 }
 .tab-favicon {
   width: 16px;
@@ -1806,8 +1845,10 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 
 .collection-block.drag-target .collection-header,
 .sidebar-col-item.drag-target {
-  outline: 1px dashed var(--text-tertiary);
-  outline-offset: -1px;
+  background: var(--color-accent-light);
+  padding-top: 10px;
+  padding-bottom: 10px;
+  transition: background-color 150ms ease-out, padding 150ms ease-out;
 }
 
 .collection-block.is-dragging,
