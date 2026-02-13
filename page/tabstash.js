@@ -30,11 +30,18 @@ let state = {
 };
 
 let dragState = {
+  type: null,
   collectionId: null,
   source: null,
   collectionPinned: null,
   tabId: null,
   tabCollectionId: null,
+  tabSourceRow: null,
+  tabDragImage: null,
+  tabDragDelayTimer: null,
+  tabDragReadyRow: null,
+  autoScrollRaf: null,
+  autoScrollVelocity: 0,
 };
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
@@ -100,6 +107,8 @@ function faviconUrl(url) {
 
 // ── Events ─────────────────────────────────────────────
 function bindEvents() {
+  document.addEventListener('dragover', handleGlobalDragOver);
+
   // Sidebar: "All Tabs"
   $$('.nav-item[data-view]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -265,6 +274,101 @@ function bindEvents() {
       closeSearchPanel();
     }
   });
+}
+
+function clearTabDragDelay() {
+  if (dragState.tabDragDelayTimer) {
+    clearTimeout(dragState.tabDragDelayTimer);
+    dragState.tabDragDelayTimer = null;
+  }
+  if (dragState.tabDragReadyRow) {
+    dragState.tabDragReadyRow.draggable = false;
+    dragState.tabDragReadyRow.classList.remove('drag-ready');
+    dragState.tabDragReadyRow = null;
+  }
+}
+
+function resetTabDragState() {
+  clearTabDragDelay();
+  dragState.type = null;
+  dragState.tabId = null;
+  dragState.tabCollectionId = null;
+  dragState.tabSourceRow?.classList.remove('is-dragging');
+  dragState.tabSourceRow = null;
+  $$('.tab-row').forEach((el) => el.classList.remove('drag-target', 'is-dragging'));
+  $$('.collection-block').forEach((el) => el.classList.remove('drag-target'));
+  $$('.sidebar-col-item').forEach((el) => el.classList.remove('drag-target'));
+  if (dragState.tabDragImage?.parentNode) {
+    dragState.tabDragImage.parentNode.removeChild(dragState.tabDragImage);
+  }
+  dragState.tabDragImage = null;
+  stopAutoScroll();
+}
+
+function startAutoScroll() {
+  if (dragState.autoScrollRaf) return;
+  const tick = () => {
+    const content = $('#content');
+    if (!content || !dragState.autoScrollVelocity) {
+      dragState.autoScrollRaf = null;
+      return;
+    }
+    content.scrollTop += dragState.autoScrollVelocity;
+    dragState.autoScrollRaf = requestAnimationFrame(tick);
+  };
+  dragState.autoScrollRaf = requestAnimationFrame(tick);
+}
+
+function stopAutoScroll() {
+  dragState.autoScrollVelocity = 0;
+  if (dragState.autoScrollRaf) {
+    cancelAnimationFrame(dragState.autoScrollRaf);
+    dragState.autoScrollRaf = null;
+  }
+}
+
+function handleGlobalDragOver(e) {
+  if (dragState.type !== 'tab') return;
+  const content = $('#content');
+  if (!content) return;
+  const rect = content.getBoundingClientRect();
+  const edgeThreshold = 56;
+  const maxVelocity = 12;
+
+  if (e.clientY < rect.top + edgeThreshold) {
+    const factor = (rect.top + edgeThreshold - e.clientY) / edgeThreshold;
+    dragState.autoScrollVelocity = -Math.max(2, Math.round(maxVelocity * factor));
+    startAutoScroll();
+    return;
+  }
+
+  if (e.clientY > rect.bottom - edgeThreshold) {
+    const factor = (e.clientY - (rect.bottom - edgeThreshold)) / edgeThreshold;
+    dragState.autoScrollVelocity = Math.max(2, Math.round(maxVelocity * factor));
+    startAutoScroll();
+    return;
+  }
+
+  stopAutoScroll();
+}
+
+function createTabDragPreview(title, faviconSrc) {
+  const ghost = document.createElement('div');
+  ghost.className = 'tab-drag-ghost';
+  ghost.innerHTML = `
+    ${faviconSrc ? `<img class="tab-favicon" src="${escAttr(faviconSrc)}" alt=""/>` : '<div class="tab-favicon-placeholder"></div>'}
+    <span class="tab-drag-ghost-title">${escHtml(title)}</span>
+  `;
+  document.body.appendChild(ghost);
+  return ghost;
+}
+
+async function moveDraggedTabToCollection(targetCollectionId) {
+  if (!dragState.tabId || !dragState.tabCollectionId || !targetCollectionId) return;
+  if (dragState.tabCollectionId === targetCollectionId) return;
+  await WhyTabStorage.moveTab(dragState.tabId, targetCollectionId);
+  await loadData();
+  render();
 }
 
 function scrollMainToTop() {
@@ -696,6 +800,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     header.draggable = true;
     header.classList.add('draggable-collection');
     header.addEventListener('dragstart', (e) => {
+      dragState.type = 'collection';
       dragState.collectionId = col.id;
       dragState.collectionPinned = Boolean(col.isPinned);
       dragState.source = 'main';
@@ -704,16 +809,23 @@ function buildCollectionBlock(col, readOnly, collapsible) {
       e.dataTransfer.setData('text/plain', col.id);
     });
     header.addEventListener('dragend', () => {
+      dragState.type = null;
       dragState.collectionId = null;
       dragState.collectionPinned = null;
       dragState.source = null;
       $$('.collection-block').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
     });
     header.addEventListener('dragover', (e) => {
-      if (!dragState.collectionId || dragState.collectionPinned !== Boolean(col.isPinned)) return;
-      if (dragState.collectionId === col.id) return;
-      e.preventDefault();
-      div.classList.add('drag-target');
+      if (dragState.type === 'collection') {
+        if (!dragState.collectionId || dragState.collectionPinned !== Boolean(col.isPinned)) return;
+        if (dragState.collectionId === col.id) return;
+        e.preventDefault();
+        div.classList.add('drag-target');
+      }
+      if (dragState.type === 'tab') {
+        e.preventDefault();
+        div.classList.add('drag-target');
+      }
     });
     header.addEventListener('dragleave', () => {
       div.classList.remove('drag-target');
@@ -721,8 +833,13 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     header.addEventListener('drop', async (e) => {
       e.preventDefault();
       div.classList.remove('drag-target');
-      if (!dragState.collectionId || dragState.collectionId === col.id) return;
-      await reorderCollectionsWithinGroup(Boolean(col.isPinned), dragState.collectionId, col.id);
+      if (dragState.type === 'collection') {
+        if (!dragState.collectionId || dragState.collectionId === col.id) return;
+        await reorderCollectionsWithinGroup(Boolean(col.isPinned), dragState.collectionId, col.id);
+      }
+      if (dragState.type === 'tab') {
+        await moveDraggedTabToCollection(col.id);
+      }
     });
   }
 
@@ -920,6 +1037,13 @@ function buildTabRow(tab, collectionId, options = {}) {
   const archivedLabel = (archived || tab.collectionArchived) ? '<span class="archived-search-label">(archived)</span>' : '';
 
   row.innerHTML = `
+    ${inSearch ? '' : `<span class="tab-drag-handle" aria-hidden="true" title="Drag tab">
+      <svg width="10" height="14" viewBox="0 0 10 14" fill="none">
+        <circle cx="2" cy="2" r="1" fill="currentColor"/><circle cx="8" cy="2" r="1" fill="currentColor"/>
+        <circle cx="2" cy="7" r="1" fill="currentColor"/><circle cx="8" cy="7" r="1" fill="currentColor"/>
+        <circle cx="2" cy="12" r="1" fill="currentColor"/><circle cx="8" cy="12" r="1" fill="currentColor"/>
+      </svg>
+    </span>`}
     ${favicon}
     <div class="tab-info">
       <div class="tab-title-row">
@@ -948,19 +1072,43 @@ function buildTabRow(tab, collectionId, options = {}) {
   `;
 
   if (!inSearch) {
+    row.draggable = false;
+
+    const armDrag = (event) => {
+      if (event.button !== 0) return;
+      if (event.target.closest('.tab-actions, .tag-remove, .tag-add-btn, .inline-menu')) return;
+      clearTabDragDelay();
+      dragState.tabDragReadyRow = row;
+      dragState.tabDragDelayTimer = setTimeout(() => {
+        row.draggable = true;
+        row.classList.add('drag-ready');
+      }, 150);
+    };
+
+    row.addEventListener('mousedown', armDrag);
+    row.addEventListener('mouseup', clearTabDragDelay);
+    row.addEventListener('mouseleave', clearTabDragDelay);
+
     row.addEventListener('dragstart', (e) => {
+      dragState.type = 'tab';
       dragState.tabId = tab.id;
       dragState.tabCollectionId = collectionId;
+      dragState.tabSourceRow = row;
       row.classList.add('is-dragging');
+      const faviconSrc = row.querySelector('.tab-favicon')?.getAttribute('src') || '';
+      const ghost = createTabDragPreview(tab.title, faviconSrc);
+      dragState.tabDragImage = ghost;
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', tab.id);
+      e.dataTransfer.setDragImage(ghost, 16, 16);
     });
     row.addEventListener('dragend', () => {
-      dragState.tabId = null;
-      dragState.tabCollectionId = null;
-      $$('.tab-row').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
+      resetTabDragState();
+      row.draggable = false;
+      row.classList.remove('drag-ready');
     });
     row.addEventListener('dragover', (e) => {
+      if (dragState.type !== 'tab') return;
       if (!dragState.tabId || dragState.tabId === tab.id) return;
       if (dragState.tabCollectionId !== collectionId) return;
       e.preventDefault();
@@ -972,6 +1120,7 @@ function buildTabRow(tab, collectionId, options = {}) {
     row.addEventListener('drop', async (e) => {
       e.preventDefault();
       row.classList.remove('drag-target');
+      if (dragState.type !== 'tab') return;
       if (!dragState.tabId || dragState.tabId === tab.id) return;
       if (dragState.tabCollectionId !== collectionId) return;
       await reorderTabsInCollection(collectionId, dragState.tabId, tab.id);
@@ -1291,6 +1440,7 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
   btn.dataset.id = col.id;
   btn.dataset.pinned = isPinned ? '1' : '0';
   btn.addEventListener('dragstart', (e) => {
+    dragState.type = 'collection';
     dragState.collectionId = col.id;
     dragState.collectionPinned = isPinned;
     dragState.source = 'sidebar';
@@ -1299,16 +1449,23 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
     e.dataTransfer.setData('text/plain', col.id);
   });
   btn.addEventListener('dragend', () => {
+    dragState.type = null;
     dragState.collectionId = null;
     dragState.collectionPinned = null;
     dragState.source = null;
     $$('.sidebar-col-item').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
   });
   btn.addEventListener('dragover', (e) => {
-    if (!dragState.collectionId || dragState.collectionPinned !== isPinned) return;
-    if (dragState.collectionId === col.id) return;
-    e.preventDefault();
-    btn.classList.add('drag-target');
+    if (dragState.type === 'collection') {
+      if (!dragState.collectionId || dragState.collectionPinned !== isPinned) return;
+      if (dragState.collectionId === col.id) return;
+      e.preventDefault();
+      btn.classList.add('drag-target');
+    }
+    if (dragState.type === 'tab') {
+      e.preventDefault();
+      btn.classList.add('drag-target');
+    }
   });
   btn.addEventListener('dragleave', () => {
     btn.classList.remove('drag-target');
@@ -1316,8 +1473,13 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
   btn.addEventListener('drop', async (e) => {
     e.preventDefault();
     btn.classList.remove('drag-target');
-    if (!dragState.collectionId || dragState.collectionId === col.id) return;
-    await reorderCollectionsWithinGroup(isPinned, dragState.collectionId, col.id);
+    if (dragState.type === 'collection') {
+      if (!dragState.collectionId || dragState.collectionId === col.id) return;
+      await reorderCollectionsWithinGroup(isPinned, dragState.collectionId, col.id);
+    }
+    if (dragState.type === 'tab') {
+      await moveDraggedTabToCollection(col.id);
+    }
   });
 
   btn.addEventListener('click', async (e) => {
