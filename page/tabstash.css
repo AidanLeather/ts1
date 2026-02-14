@@ -262,6 +262,7 @@ body {
 .sidebar-col-count--pinned {
   background: none;
   color: var(--sidebar-count-pinned-text);
+  margin-left: 4px;
 }
 
 .sidebar-pin-icon {
@@ -937,6 +938,7 @@ body {
   transition: opacity var(--transition);
   flex-shrink: 0;
   margin-left: auto;
+  margin-right: 8px;
 }
 .collection-header:hover .col-actions,
 .col-actions.persistent {
@@ -1990,6 +1992,18 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 .collection-header.is-archived .collection-name,
 .collection-header.is-archived .collection-tab-count {
   color: rgba(26, 26, 26, 0.6);
+}
+
+
+.collection-header.prune-active {
+  align-items: flex-start;
+}
+
+.collection-header.prune-active .collection-name {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.25;
 }
 
 

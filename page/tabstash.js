@@ -962,6 +962,9 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const showArchived = Boolean(state.archivedExpanded[col.id]);
   const visibleTabs = readOnly ? (col.tabs || []) : activeTabs;
   const countText = `(${activeTabs.length})`;
+  const collectionName = state.pruneMode.active && (col.name || '').length > 50
+    ? `${(col.name || '').slice(0, 50).trimEnd()}…`
+    : (col.name || '');
 
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
   const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
@@ -1023,7 +1026,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
-    <span class="${nameClass}">${escHtml(col.name)}</span>${archivedNameLabel}
+    <span class="${nameClass}">${escHtml(collectionName)}</span>${archivedNameLabel}
     <span class="collection-tab-count">${countText}</span>
     ${pruneMetaHtml}
     ${readOnly ? '' : `
