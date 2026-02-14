@@ -1031,9 +1031,6 @@ body {
 .tab-row.is-dragging .tab-drag-handle {
   opacity: 1;
 }
-.tab-row.prune-active .tab-drag-handle {
-  display: none;
-}
 .tab-drag-ghost {
   position: fixed;
   top: -1000px;
