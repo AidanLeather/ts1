@@ -718,33 +718,41 @@ body {
 }
 
 .prune-tally {
-  padding: 6px 24px 6px;
-  color: #7b7f85;
+  width: calc(100% - 48px);
+  margin: 0 24px 18px;
+  padding: 11px 18px;
+  color: #F0F0F0;
+  background: #4E7A65;
+  border-radius: var(--radius-md);
   font: 400 13px var(--font);
+  line-height: 1.4;
   transition: opacity 300ms ease;
 }
 
 .prune-metric-remaining {
-  color: #5d646d;
+  color: #F0F0F0;
 }
 
 .prune-value.tick {
   animation: prune-tick 200ms ease;
   display: inline-block;
+  color: #fff;
 }
 
 .prune-sep {
   margin: 0 4px;
+  color: rgba(240, 240, 240, 0.9);
 }
 
 .prune-all-sorted {
-  color: #4E7A65;
+  color: #F0F0F0;
   font-weight: 500;
 }
 
 .prune-summary {
   margin-top: 2px;
   font-size: 12px;
+  color: rgba(240, 240, 240, 0.95);
 }
 
 .prune-tally.fade-out {
@@ -2135,7 +2143,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   padding: 4px;
-  z-index: 50;
+  z-index: 300;
   display: none;
 }
 
