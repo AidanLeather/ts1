@@ -857,9 +857,43 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const archivedToggleMenuItem = archivedTabs.length > 0
     ? `<button class="inline-menu-item toggle-archived-tabs-btn">${showArchived ? 'Hide archived' : 'Show archived'}</button>`
     : '';
+  const pinIcon = `<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="${col.isPinned ? 'currentColor' : 'none'}" stroke-linejoin="round"/></svg>`;
+  const archiveIcon = col.archived
+    ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 9V5.5M6.5 5.5L4.8 7.2M6.5 5.5L8.2 7.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 5V8.5M6.5 8.5L4.8 6.8M6.5 8.5L8.2 6.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+  const primaryActions = [];
+  const menuActions = [archivedToggleMenuItem].filter(Boolean);
+
+  if (!readOnly) {
+    primaryActions.push(`
+      <button class="icon-btn restore-all-btn" title="Restore all">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    `);
+    primaryActions.push(`
+      <button class="icon-btn rename-btn" title="Rename">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+      </button>
+    `);
+
+    if (col.isPinned) {
+      primaryActions.push(`<button class="icon-btn pin-btn" title="Unpin">${pinIcon}</button>`);
+      menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
+    } else if (col.isUserNamed) {
+      primaryActions.push(`<button class="icon-btn pin-btn" title="Pin">${pinIcon}</button>`);
+      menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
+    } else {
+      primaryActions.push(`<button class="icon-btn archive-col-btn" title="${col.archived ? 'Unarchive' : 'Archive'}">${archiveIcon}</button>`);
+      menuActions.push('<button class="inline-menu-item pin-btn">Pin</button>');
+    }
+
+    menuActions.push('<button class="inline-menu-item delete-col-btn">Delete collection</button>');
+  }
+
   const collectionMenu = readOnly
     ? ''
-    : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${archivedToggleMenuItem}<button class="inline-menu-item delete-col-btn">Delete collection</button></div></details>`;
+    : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${menuActions.join('')}</div></details>`;
 
   const archivedNameLabel = readOnly && col.archived ? '<span class="archived-search-label">(archived)</span>' : '';
 
@@ -869,20 +903,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     <span class="collection-tab-count">${countText}</span>
     ${readOnly ? '' : `
     <div class="col-actions">
-      <button class="icon-btn restore-all-btn" title="Restore all">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn rename-btn" title="Rename">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn pin-btn" title="${col.isPinned ? 'Unpin' : 'Pin'}">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="${col.isPinned ? 'currentColor' : 'none'}" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn archive-col-btn" title="${col.archived ? 'Unarchive' : 'Archive'}">
-        ${col.archived
-          ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 9V5.5M6.5 5.5L4.8 7.2M6.5 5.5L8.2 7.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-          : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 5V8.5M6.5 8.5L4.8 6.8M6.5 8.5L8.2 6.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'}
-      </button>
+      ${primaryActions.join('')}
       ${collectionMenu}
     </div>`}
     ${timestampHtml}
