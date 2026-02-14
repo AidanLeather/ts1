@@ -291,22 +291,8 @@ function bindEvents() {
   $('#empty-cta-btn')?.addEventListener('click', saveAllTabs);
 
   // New collection
-  $('#new-collection-btn').addEventListener('click', async () => {
-    const name = await openInlineInputModal({
-      title: 'New collection',
-      placeholder: 'Collection name',
-      confirmLabel: 'Create',
-    });
-    if (name && name.trim()) {
-      try {
-        const col = await WhyTabStorage.addCollection(name.trim(), [], { isUserNamed: true });
-        await loadData();
-        state.currentView = col.id;
-        render();
-      } catch (err) {
-        console.error('[WhyTab] New collection error:', err);
-      }
-    }
+  $('#new-collection-btn').addEventListener('click', () => {
+    handleNewCollection().catch((err) => console.error('[WhyTab] New collection error:', err));
   });
 
   // Settings
@@ -355,15 +341,7 @@ function bindEvents() {
   });
 
   $('#prune-mode-btn')?.addEventListener('click', async () => {
-    if (state.pruneMode.active) {
-      exitPruneMode();
-      await loadData();
-      render();
-      return;
-    }
-    enterPruneMode();
-    await loadData();
-    render();
+    togglePruneMode().catch((err) => console.error('[WhyTab] prune mode toggle error:', err));
   });
 
   const sortMenu = $('#collection-sort-menu');
@@ -757,17 +735,31 @@ function scrollCollectionIntoPruneFocus(block, duration = PRUNE_ENTRY_SCROLL_MS)
 // ── Keyboard ───────────────────────────────────────────
 function bindKeyboard() {
   document.addEventListener('keydown', (e) => {
-    const tag = document.activeElement?.tagName;
-    const inInput = tag === 'INPUT' || tag === 'TEXTAREA';
+    if (document.visibilityState !== 'visible') return;
 
-    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    const key = e.key.toLowerCase();
+    const withModifier = e.metaKey || e.ctrlKey;
+    const inInput = isTextInputFocused();
+    const paletteOpen = isPaletteOpen();
+
+    if (withModifier && key === 'k') {
       e.preventDefault();
       openPalette();
       return;
     }
 
+    if (withModifier && ['s', 'n', 'p', 'u'].includes(key) && (!inInput || paletteOpen)) {
+      e.preventDefault();
+      if (paletteOpen) closePalette();
+      if (key === 's') saveAndCloseTabs();
+      if (key === 'n') handleNewCollection().catch((err) => console.error('[WhyTab] New collection error:', err));
+      if (key === 'p') togglePruneMode().catch((err) => console.error('[WhyTab] prune mode toggle error:', err));
+      if (key === 'u') toggleItemUrls().catch((err) => console.error('[WhyTab] toggle URLs error:', err));
+      return;
+    }
+
     if (e.key === 'Escape') {
-      if (!$('#command-palette').classList.contains('hidden')) { closePalette(); return; }
+      if (paletteOpen) { closePalette(); return; }
       if (!$('#settings-overlay').classList.contains('hidden')) { closeSettings(); return; }
       if (!$('#move-modal').classList.contains('hidden')) { closeMoveModal(); return; }
       if (state.searchQuery) {
@@ -780,7 +772,7 @@ function bindKeyboard() {
       if (inInput) { document.activeElement.blur(); return; }
     }
 
-    if (e.key === '/' && !inInput) {
+    if (e.key === '/' && !inInput && !paletteOpen) {
       e.preventDefault();
       $('#search').focus();
     }
@@ -2313,31 +2305,107 @@ function replaceWithClone(sel, handler, event) {
 }
 
 // ── Command palette ────────────────────────────────────
-const COMMANDS = [
-  { label: 'Save & close tabs', action: () => saveAndCloseTabs() },
-  { label: 'View all tabs', action: () => { state.currentView = 'all'; render(); }},
-  { label: 'New collection', action: async () => {
-    const name = await openInlineInputModal({
-      title: 'New collection',
-      placeholder: 'Collection name',
-      confirmLabel: 'Create',
-    });
-    if (name?.trim()) {
-      const col = await WhyTabStorage.addCollection(name.trim(), [], { isUserNamed: true });
-      await loadData(); state.currentView = col.id; render();
-    }
-  }},
-  { label: 'Open settings', action: () => openSettings() },
-  { label: 'Export data', action: async () => {
-    const data = await WhyTabStorage.getAll();
-    downloadText(`tabstash-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(data, null, 2), 'application/json');
-    showToast('Exported');
-  }},
-];
-
 let paletteSel = 0;
+let paletteItems = [];
+const IS_MAC = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || '');
+
+function getShortcutParts(key) {
+  if (key === '/') return ['/'];
+  return IS_MAC ? ['⌘', key.toUpperCase()] : ['Ctrl', key.toUpperCase()];
+}
+
+function isPaletteOpen() {
+  return !$('#command-palette').classList.contains('hidden');
+}
+
+function isTextInputFocused() {
+  const active = document.activeElement;
+  if (!active) return false;
+  if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return true;
+  if (active.isContentEditable) return true;
+  return Boolean(active.closest('[contenteditable="true"]'));
+}
+
+async function handleNewCollection() {
+  const name = await openInlineInputModal({
+    title: 'New collection',
+    placeholder: 'Collection name',
+    confirmLabel: 'Create',
+  });
+  if (!name?.trim()) return;
+  const col = await WhyTabStorage.addCollection(name.trim(), [], { isUserNamed: true });
+  await loadData();
+  state.currentView = col.id;
+  render();
+}
+
+async function toggleItemUrls() {
+  const next = !Boolean(state.settings.showItemUrls);
+  await WhyTabStorage.saveSettings({ ...state.settings, showItemUrls: next });
+  state.settings = await WhyTabStorage.getSettings();
+  render();
+}
+
+async function togglePruneMode() {
+  if (state.pruneMode.active) exitPruneMode();
+  else enterPruneMode();
+  await loadData();
+  render();
+}
+
+async function goToCollectionFromCommand(collectionId) {
+  state.currentView = 'all';
+  state.searchQuery = '';
+  $('#search').value = '';
+  await expandCollectionIfCollapsed(collectionId);
+  state.pendingSidebarCollectionId = collectionId;
+  render();
+}
+
+function getPaletteSections() {
+  const actions = [
+    { label: 'Save & close tabs', shortcut: 's', action: () => saveAndCloseTabs() },
+    { label: 'New collection', shortcut: 'n', action: () => handleNewCollection() },
+    { label: state.pruneMode.active ? 'Exit prune mode' : 'Enter prune mode', shortcut: 'p', action: () => togglePruneMode() },
+    { label: 'Toggle item URLs', shortcut: 'u', action: () => toggleItemUrls() },
+    { label: 'Export data', action: async () => {
+      const data = await WhyTabStorage.getAll();
+      downloadText(`tabstash-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(data, null, 2), 'application/json');
+      showToast('Exported');
+    } },
+    { label: 'Focus search bar', shortcut: '/', action: () => $('#search').focus() },
+  ];
+
+  const navigation = [
+    { label: 'View all tabs', action: () => { state.currentView = 'all'; render(); } },
+    { label: 'Open settings', action: () => openSettings() },
+    { label: 'Go to Named', action: () => { state.currentView = 'saved'; render(); } },
+    { label: 'Go to Archived', action: () => { state.currentView = 'archived'; render(); } },
+  ];
+
+  const pinned = state.collections.filter((c) => c.isPinned && !c.archived);
+  const named = state.collections.filter((c) => !c.isPinned && c.isUserNamed && !c.archived);
+  const collections = [...pinned, ...named].map((c) => {
+    const count = c.tabs.filter((tab) => !tab.archived).length;
+    return {
+      label: `Go to: ${c.name}`,
+      meta: `${count} ${count === 1 ? 'tab' : 'tabs'}`,
+      action: () => goToCollectionFromCommand(c.id),
+    };
+  });
+
+  return [
+    { title: 'Actions', items: actions },
+    { title: 'Navigation', items: navigation },
+    { title: 'Collections', items: collections },
+  ];
+}
 
 function openPalette() {
+  if (isPaletteOpen()) {
+    closePalette();
+    return;
+  }
   $('#command-palette').classList.remove('hidden');
   const input = $('#palette-input');
   input.value = '';
@@ -2347,14 +2415,22 @@ function openPalette() {
 
   input.oninput = () => { paletteSel = 0; renderPalette(input.value); };
   input.onkeydown = (e) => {
-    const items = $$('.palette-item');
-    if (e.key === 'ArrowDown') { e.preventDefault(); paletteSel = Math.min(paletteSel + 1, items.length - 1); highlightPalette(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); paletteSel = Math.min(paletteSel + 1, Math.max(0, paletteItems.length - 1)); highlightPalette(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); paletteSel = Math.max(paletteSel - 1, 0); highlightPalette(); }
-    else if (e.key === 'Enter') { e.preventDefault(); items[paletteSel]?.click(); }
+    else if (e.key === 'Enter') { e.preventDefault(); executePaletteSelection(); }
   };
 }
 
-function closePalette() { $('#command-palette').classList.add('hidden'); }
+function closePalette() {
+  $('#command-palette').classList.add('hidden');
+}
+
+async function executePaletteSelection() {
+  const item = paletteItems[paletteSel];
+  if (!item) return;
+  closePalette();
+  await item.action();
+}
 
 // ── Search panel ───────────────────────────────────────
 async function loadRecentSearches() {
@@ -2594,27 +2670,52 @@ function updateFilterChips() {
 function renderPalette(q) {
   const container = $('#palette-results');
   container.innerHTML = '';
-  q = q.toLowerCase().trim();
+  const query = q.toLowerCase().trim();
+  const sections = getPaletteSections();
+  paletteItems = [];
 
-  const all = [
-    ...COMMANDS,
-    ...state.collections.map((c) => ({
-      label: `Go to: ${c.name}`,
-      hint: `${c.tabs.length} tabs`,
-      action: () => { state.currentView = c.id; render(); },
-    })),
-  ];
+  sections.forEach((section) => {
+    const matched = section.items.filter((item) => item.label.toLowerCase().includes(query));
+    if (!matched.length) return;
 
-  const filtered = q ? all.filter((c) => c.label.toLowerCase().includes(q)) : all;
+    const header = document.createElement('div');
+    header.className = 'palette-section-label';
+    header.textContent = section.title;
+    container.appendChild(header);
 
-  for (let i = 0; i < filtered.length; i++) {
-    const cmd = filtered[i];
-    const div = document.createElement('div');
-    div.className = `palette-item${i === paletteSel ? ' selected' : ''}`;
-    div.innerHTML = `<span class="palette-item-label">${escHtml(cmd.label)}</span>${cmd.hint ? `<span class="palette-item-hint">${escHtml(cmd.hint)}</span>` : ''}`;
-    div.addEventListener('click', () => { closePalette(); cmd.action(); });
-    container.appendChild(div);
+    matched.forEach((cmd) => {
+      const index = paletteItems.length;
+      paletteItems.push(cmd);
+      const row = document.createElement('div');
+      row.className = `palette-item${index === paletteSel ? ' selected' : ''}`;
+
+      const rightParts = [];
+      if (cmd.meta) rightParts.push(`<span class="palette-item-hint">${escHtml(cmd.meta)}</span>`);
+      if (cmd.shortcut) {
+        rightParts.push(`<span class="palette-shortcut">${getShortcutParts(cmd.shortcut).map((part) => `<kbd>${escHtml(part)}</kbd>`).join('')}</span>`);
+      }
+
+      row.innerHTML = `
+        <span class="palette-item-label">${highlightText(cmd.label, q)}</span>
+        <span class="palette-item-right">${rightParts.join('')}</span>
+      `;
+
+      row.addEventListener('click', () => {
+        paletteSel = index;
+        executePaletteSelection();
+      });
+      container.appendChild(row);
+    });
+  });
+
+  if (!paletteItems.length) {
+    paletteSel = 0;
+    container.innerHTML = '<div class="palette-empty">No results</div>';
+    return;
   }
+
+  paletteSel = Math.min(paletteSel, paletteItems.length - 1);
+  highlightPalette();
 }
 
 function highlightPalette() {
