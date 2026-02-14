@@ -19,6 +19,8 @@
 const $ = (sel) => document.querySelector(sel);
 let _saving = false; // double-click guard
 let _settings = null;
+let _pickerCollections = [];
+let _pickerOpen = false;
 
 const TITLE_STOP_WORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from',
@@ -46,6 +48,7 @@ const FRIENDLY_DOMAINS = {
 document.addEventListener('DOMContentLoaded', async () => {
   await initAccordionState();
   _settings = await WhyTabStorage.getSettings();
+  await updateWindowTabCount();
 
   // ── Primary: Save and close all tabs ──────────────────
   $('#save-close-btn').addEventListener('click', () =>
@@ -181,27 +184,51 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Add this tab to a collection ──────────────────────
   $('#add-tab-btn').addEventListener('click', async () => {
-    const picker = $('#collection-picker');
-    if (!picker.classList.contains('hidden')) {
-      picker.classList.add('hidden');
+    if (_pickerOpen) {
+      closeCollectionPicker();
       return;
     }
 
     const collections = await WhyTabStorage.getCollections();
-    if (!collections.length) {
-      showStatus('No collections yet');
+    const eligible = getPickerCollections(collections);
+    if (!eligible.length) {
+      showStatus('No pinned or named collections');
       return;
     }
-    const sorted = WhyTabStorage.sortCollections(collections);
-    const select = $('#collection-select');
-    select.innerHTML = '';
-    for (const col of sorted) {
-      const opt = document.createElement('option');
-      opt.value = col.id;
-      opt.textContent = col.name;
-      select.appendChild(opt);
+
+    _pickerCollections = eligible;
+    renderCollectionPicker();
+    openCollectionPicker();
+  });
+
+  $('#new-collection-btn').addEventListener('click', () => {
+    const inline = $('#new-collection-inline');
+    inline.classList.remove('hidden');
+    $('#new-collection-input').focus();
+  });
+
+  $('#new-collection-input').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      createNewCollectionFromPicker();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeCollectionPicker();
     }
-    picker.classList.remove('hidden');
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!_pickerOpen) return;
+    const picker = $('#collection-picker');
+    const toggle = $('#add-tab-btn');
+    if (picker.contains(event.target) || toggle.contains(event.target)) return;
+    closeCollectionPicker();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && _pickerOpen) {
+      closeCollectionPicker();
+    }
   });
 
   $('#more-options-toggle').addEventListener('click', async () => {
@@ -213,24 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.set({ popupAccordionOpen: nextOpen });
   });
 
-  $('#collection-add-confirm').addEventListener('click', () =>
-    runWithSaving($('#collection-add-confirm'), async () => {
-      const tabs = await chrome.tabs.query({ currentWindow: true });
-      const active = tabs.find((t) => t.active);
-      if (!active || !isSaveableTab(active)) {
-        showStatus('No saveable active tab');
-        return;
-      }
-      const collectionId = $('#collection-select').value;
-      if (!collectionId) {
-        showStatus('Choose a collection');
-        return;
-      }
-      await WhyTabStorage.addManualTab(collectionId, active.title || active.url, active.url);
-      showStatus('Added tab to collection');
-      $('#collection-picker').classList.add('hidden');
-    })
-  );
+
 
   // ── Tertiary: Open WhyTab ───────────────────────────
   $('#open-btn').addEventListener('click', () => {
@@ -240,6 +250,103 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.close();
   });
 });
+
+
+async function updateWindowTabCount() {
+  const tabs = await chrome.tabs.query({ currentWindow: true });
+  const count = tabs.length;
+  $('#window-tab-count').textContent = `${count} tab${count === 1 ? '' : 's'} in this window`;
+}
+
+function getPickerCollections(collections) {
+  const pinned = collections.filter((col) => col.isPinned);
+  const named = collections
+    .filter((col) => !col.isPinned && col.isUserNamed)
+    .sort((a, b) => (b.lastInteractedAt || b.createdAt || 0) - (a.lastInteractedAt || a.createdAt || 0));
+  return [...pinned, ...named];
+}
+
+function openCollectionPicker() {
+  _pickerOpen = true;
+  $('#collection-picker').classList.remove('hidden');
+  $('#add-tab-btn').setAttribute('aria-expanded', 'true');
+}
+
+function closeCollectionPicker() {
+  _pickerOpen = false;
+  $('#collection-picker').classList.add('hidden');
+  $('#add-tab-btn').setAttribute('aria-expanded', 'false');
+  $('#new-collection-inline').classList.add('hidden');
+  $('#new-collection-input').value = '';
+}
+
+function renderCollectionPicker() {
+  const list = $('#collection-list');
+  list.innerHTML = '';
+
+  for (const col of _pickerCollections) {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'popup-collection-item';
+    row.dataset.collectionId = col.id;
+    row.innerHTML = `<span>${escapeHtml(col.name || 'Untitled')}</span><span class="popup-collection-count">(${(col.tabs || []).length})</span>`;
+    row.addEventListener('click', () => addCurrentTabToCollection(col, row));
+    list.appendChild(row);
+  }
+
+  list.classList.toggle('scrollable', _pickerCollections.length > 8);
+}
+
+async function addCurrentTabToCollection(collection, rowEl) {
+  if (_saving) return;
+  await runWithSaving(rowEl, async () => {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const active = tabs.find((t) => t.active);
+    if (!active || !isSaveableTab(active)) {
+      showStatus('No saveable active tab');
+      return;
+    }
+
+    await WhyTabStorage.addManualTab(collection.id, active.title || active.url, active.url);
+    rowEl.classList.add('added');
+    rowEl.textContent = 'Added ✓';
+    await sleep(800);
+    closeCollectionPicker();
+    showStatus('Added tab to collection');
+  });
+}
+
+async function createNewCollectionFromPicker() {
+  const input = $('#new-collection-input');
+  const name = input.value.trim();
+  if (!name) return;
+
+  await runWithSaving($('#new-collection-btn'), async () => {
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const active = tabs.find((t) => t.active);
+    if (!active || !isSaveableTab(active)) {
+      showStatus('No saveable active tab');
+      return;
+    }
+
+    await WhyTabStorage.addCollection(name, [active], { isUserNamed: true });
+    closeCollectionPicker();
+    showStatus('Added tab to new collection');
+  });
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 async function initAccordionState() {
   try {
