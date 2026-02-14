@@ -243,7 +243,7 @@ body {
 }
 
 .sidebar-col-count {
-  margin-left: auto;
+  margin-left: 5px;
   margin-right: 0;
   font-size: 11px;
   padding: 0;
@@ -262,7 +262,7 @@ body {
 .sidebar-col-count--pinned {
   background: none;
   color: var(--sidebar-count-pinned-text);
-  margin-left: 4px;
+  margin-left: 5px;
 }
 
 .sidebar-pin-icon {
@@ -274,7 +274,15 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-col-title-group {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* ── Sidebar hover actions (pin toggle) ──────────────── */
@@ -2014,6 +2022,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
   text-overflow: ellipsis;
   white-space: nowrap;
   display: inline-block;
+  min-width: 0;
 }
 
 .collection-body .tab-row:last-child { margin-bottom: 0; }
