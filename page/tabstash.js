@@ -28,6 +28,13 @@ let state = {
   pendingSidebarCollectionId: null,
   archivedExpanded: {},
   hasAutoArchiveCheckRun: false,
+  pruneMode: {
+    active: false,
+    unpinnedOrderIds: [],
+    archivedCount: 0,
+    deletedCount: 0,
+    exitDisplayUntil: 0,
+  },
 };
 
 let dragState = {
@@ -47,6 +54,7 @@ let dragState = {
 };
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
+const PRUNE_TALLY_HOLD_MS = 2000;
 let inlineEditSession = null;
 let inlineInputModalSession = null;
 const COLLECTION_SORT_OPTIONS = [
@@ -90,7 +98,7 @@ async function loadData() {
 
     const data = await WhyTabStorage.getAll();
     state.settings = data.settings;
-    state.collections = getCollectionsForDisplay(data.collections, state.settings.collectionSort);
+    state.collections = getCollectionsForCurrentMode(data.collections, state.settings.collectionSort);
     state.urlIndex = data.urlIndex;
     console.log(`[WhyTab] Loaded ${state.collections.length} collections`);
   } catch (err) {
@@ -283,6 +291,18 @@ function bindEvents() {
     render();
   });
 
+  $('#prune-mode-btn')?.addEventListener('click', async () => {
+    if (state.pruneMode.active) {
+      exitPruneMode();
+      await loadData();
+      render();
+      return;
+    }
+    enterPruneMode();
+    await loadData();
+    render();
+  });
+
   const sortMenu = $('#collection-sort-menu');
   sortMenu?.querySelectorAll('.collection-sort-item').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
@@ -316,6 +336,93 @@ function getSavedCollections() {
     .sort((a, b) => (b.lastInteractedAt || b.createdAt || 0) - (a.lastInteractedAt || a.createdAt || 0));
 }
 
+
+function getPruneSortedUnpinnedCollections(collections) {
+  return [...collections].sort((a, b) => {
+    const aNever = a.lastInteractedAt == null;
+    const bNever = b.lastInteractedAt == null;
+    if (aNever !== bNever) return aNever ? -1 : 1;
+
+    const aTs = a.lastInteractedAt ?? 0;
+    const bTs = b.lastInteractedAt ?? 0;
+    if (aTs !== bTs) return aTs - bTs;
+
+    if (a.isUserNamed !== b.isUserNamed) return a.isUserNamed ? 1 : -1;
+    return (a.createdAt || 0) - (b.createdAt || 0);
+  });
+}
+
+function getCollectionsForCurrentMode(collections, sortMode) {
+  if (!state.pruneMode.active) {
+    return getCollectionsForDisplay(collections, sortMode);
+  }
+
+  const visibleCollections = collections.filter((c) => c.name !== 'Unsorted');
+  const pinned = visibleCollections.filter((c) => c.isPinned);
+  const archived = visibleCollections.filter((c) => c.archived);
+  const unpinnedActive = visibleCollections.filter((c) => !c.isPinned && !c.archived);
+
+  const frozenOrder = state.pruneMode.unpinnedOrderIds
+    .map((id) => unpinnedActive.find((col) => col.id === id))
+    .filter(Boolean);
+  const existingIds = new Set(frozenOrder.map((col) => col.id));
+  const overflow = unpinnedActive.filter((col) => !existingIds.has(col.id));
+
+  return [...pinned, ...frozenOrder, ...overflow, ...archived];
+}
+
+function enterPruneMode() {
+  const visibleCollections = state.collections.filter((c) => c.name !== 'Unsorted');
+  const unpinnedActive = visibleCollections.filter((c) => !c.isPinned && !c.archived);
+  state.pruneMode.active = true;
+  state.pruneMode.unpinnedOrderIds = getPruneSortedUnpinnedCollections(unpinnedActive).map((c) => c.id);
+  state.pruneMode.archivedCount = 0;
+  state.pruneMode.deletedCount = 0;
+  state.pruneMode.exitDisplayUntil = 0;
+}
+
+function exitPruneMode() {
+  state.pruneMode.active = false;
+  state.pruneMode.unpinnedOrderIds = [];
+  state.pruneMode.exitDisplayUntil = Date.now() + PRUNE_TALLY_HOLD_MS;
+  renderPruneTally();
+  setTimeout(() => {
+    if (Date.now() < state.pruneMode.exitDisplayUntil || state.pruneMode.active) return;
+    state.pruneMode.archivedCount = 0;
+    state.pruneMode.deletedCount = 0;
+    state.pruneMode.exitDisplayUntil = 0;
+    renderPruneTally();
+  }, PRUNE_TALLY_HOLD_MS + 330);
+}
+
+function incrementPruneTally(type) {
+  if (!state.pruneMode.active) return;
+  if (type === 'archived') state.pruneMode.archivedCount += 1;
+  if (type === 'deleted') state.pruneMode.deletedCount += 1;
+  animatePruneTally();
+}
+
+function formatRelativeActivity(timestamp) {
+  if (timestamp == null) return 'Never opened';
+  const diffMs = Date.now() - timestamp;
+  const dayMs = 24 * 60 * 60 * 1000;
+  if (diffMs < dayMs) return 'Active today';
+  const days = Math.floor(diffMs / dayMs);
+  if (days < 7) return `Active ${days} day${days === 1 ? '' : 's'} ago`;
+  if (days < 30) {
+    const weeks = Math.floor(days / 7);
+    return `Active ${weeks} week${weeks === 1 ? '' : 's'} ago`;
+  }
+  const months = Math.floor(days / 30);
+  return `Active ${months} month${months === 1 ? '' : 's'} ago`;
+}
+
+function shouldShowUntouchedHint(collection) {
+  if (!state.pruneMode.active || collection.isPinned || collection.isUserNamed) return false;
+  if (collection.lastInteractedAt == null) return true;
+  const diffMs = Date.now() - collection.lastInteractedAt;
+  return diffMs >= 7 * 24 * 60 * 60 * 1000;
+}
 function getCollectionsForDisplay(collections, sortMode) {
   const visibleCollections = collections.filter((c) => c.name !== 'Unsorted');
   const pinned = visibleCollections.filter((c) => c.isPinned);
@@ -599,6 +706,7 @@ function render() {
   updateSidebar();
   updateViewHeader();
   updateSearchPlaceholder();
+  renderPruneTally();
   $('#search-clear-btn')?.classList.toggle('hidden', !state.searchQuery.trim());
 
   const content = $('#content');
@@ -652,6 +760,14 @@ function renderAllView(content, empty) {
   const activeCollections = state.collections.filter((c) => !c.archived);
   if (activeCollections.length === 0) {
     content.innerHTML = '';
+    if (state.pruneMode.active) {
+      setEmptyState({
+        title: 'All clear',
+        sub: '',
+        showDescription: false,
+        showCta: false,
+      });
+    }
     empty.classList.remove('hidden');
     return;
   }
@@ -764,12 +880,16 @@ function renderSearchResults(content, results) {
   const groups = {};
   for (const r of results) {
     if (!groups[r.collectionId]) {
-      groups[r.collectionId] = { name: r.collectionName, id: r.collectionId, tabs: [], archived: Boolean(r.collectionArchived) };
+      const source = state.collections.find((col) => col.id === r.collectionId);
+      groups[r.collectionId] = source
+        ? { ...source, tabs: [] }
+        : { name: r.collectionName, id: r.collectionId, tabs: [], archived: Boolean(r.collectionArchived), isPinned: false, isUserNamed: true };
     }
     groups[r.collectionId].tabs.push(r);
   }
   for (const group of Object.values(groups)) {
-    content.appendChild(buildCollectionBlock(group, true, true));
+    const isReadOnly = !state.pruneMode.active;
+    content.appendChild(buildCollectionBlock(group, isReadOnly, true));
   }
 }
 
@@ -832,7 +952,7 @@ async function setAllAccordionState(collapsed) {
 // ── Collection block ───────────────────────────────────
 function buildCollectionBlock(col, readOnly, collapsible) {
   const div = document.createElement('div');
-  div.className = 'collection-block';
+  div.className = `collection-block${state.pruneMode.active ? ' prune-mode' : ''}`;
   div.dataset.id = col.id;
   div.dataset.pinned = col.isPinned ? '1' : '0';
   div.id = `collection-${col.id}`;
@@ -852,7 +972,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ? 'collection-name auto-named'
     : 'collection-name user-named';
   const header = document.createElement('div');
-  header.className = `collection-header${collapsible ? '' : ' collection-header--single'}${col.archived ? ' is-archived' : ''}`;
+  header.className = `collection-header${collapsible ? '' : ' collection-header--single'}${col.archived ? ' is-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}`;
   const isArchivedView = state.currentView === 'archived';
 
   const archivedToggleMenuItem = archivedTabs.length > 0
@@ -897,13 +1017,17 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${menuActions.join('')}</div></details>`;
 
   const archivedNameLabel = readOnly && col.archived ? '<span class="archived-search-label">(archived)</span>' : '';
+  const pruneMetaHtml = state.pruneMode.active && !readOnly
+    ? `<div class="collection-activity">${escHtml(formatRelativeActivity(col.lastInteractedAt))}${shouldShowUntouchedHint(col) ? '<span class="collection-untouched">Untouched</span>' : ''}</div>`
+    : '';
 
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
     <span class="${nameClass}">${escHtml(col.name)}</span>${archivedNameLabel}
     <span class="collection-tab-count">${countText}</span>
+    ${pruneMetaHtml}
     ${readOnly ? '' : `
-    <div class="col-actions">
+    <div class="col-actions${state.pruneMode.active ? ' persistent' : ''}">
       ${primaryActions.join('')}
       ${collectionMenu}
     </div>`}
@@ -926,7 +1050,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     });
   }
 
-  if (!readOnly && collapsible && state.currentView === 'all') {
+  if (!readOnly && collapsible && state.currentView === 'all' && !state.pruneMode.active) {
     header.draggable = true;
     header.classList.add('draggable-collection');
     header.addEventListener('dragstart', (e) => {
@@ -1001,7 +1125,15 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   if (!readOnly && activeTabs.length === 0 && archivedTabs.length > 0) {
     const emptyArchived = document.createElement('div');
     emptyArchived.className = 'collection-empty-archived';
-    emptyArchived.textContent = 'All tabs archived';
+    if (state.pruneMode.active) {
+      emptyArchived.innerHTML = `All tabs archived — <button type="button" class="empty-archive-collection-btn">Archive collection</button>?`;
+      emptyArchived.querySelector('.empty-archive-collection-btn')?.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        await archiveCollectionWithUndo(col.id, true);
+      });
+    } else {
+      emptyArchived.textContent = 'All tabs archived';
+    }
     body.appendChild(emptyArchived);
   }
 
@@ -1163,9 +1295,9 @@ function buildAddTabForm(collectionId) {
 function buildTabRow(tab, collectionId, options = {}) {
   const { archived = Boolean(tab.archived), inSearch = false } = options;
   const row = document.createElement('div');
-  row.className = `tab-row${archived || tab.collectionArchived ? ' tab-row-archived' : ''}`;
+  row.className = `tab-row${archived || tab.collectionArchived ? ' tab-row-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}`;
   row.dataset.id = tab.id;
-  row.draggable = !inSearch;
+  row.draggable = !inSearch && !state.pruneMode.active;
 
   const tags = tab.tags || [];
 
@@ -1179,6 +1311,7 @@ function buildTabRow(tab, collectionId, options = {}) {
   ).join('');
 
   const showDate = shouldShowTimestamp(tab.savedAt);
+  const tabActivityText = state.pruneMode.active ? formatRelativeActivity(tab.lastAccessedAt ?? null) : '';
   const archiveTitle = archived ? 'Unarchive' : 'Archive';
   const archiveIcon = archived
     ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 10.5V4.2M6.5 4.2L4.5 6.2M6.5 4.2L8.5 6.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2.5H11V10.5H2V2.5Z" stroke="currentColor" stroke-width="1.1"/></svg>'
@@ -1206,9 +1339,10 @@ function buildTabRow(tab, collectionId, options = {}) {
       ${state.settings.showItemUrls ? `<div class="tab-url">${escHtml(tab.url)}</div>` : ''}
     </div>
     <div class="tab-meta">
+      ${state.pruneMode.active ? `<span class="tab-activity">${escHtml(tabActivityText)}</span>` : ''}
       ${showDate ? `<span class="tab-date">${relativeDate(tab.savedAt)}</span>` : ''}
     </div>
-    <div class="tab-actions">
+    <div class="tab-actions${state.pruneMode.active ? ' persistent' : ''}">
       <button class="icon-btn open-btn" title="Open">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -1220,7 +1354,7 @@ function buildTabRow(tab, collectionId, options = {}) {
     </div>
   `;
 
-  if (!inSearch) {
+  if (!inSearch && !state.pruneMode.active) {
     row.draggable = true;
 
     row.addEventListener('dragstart', (e) => {
@@ -1261,9 +1395,7 @@ function buildTabRow(tab, collectionId, options = {}) {
 
   row.querySelector('.archive-tab-btn').addEventListener('click', async () => {
     try {
-      await WhyTabStorage.setTabArchived(tab.id, !archived);
-      await loadData();
-      render();
+      await archiveTabWithUndo(tab.id, !archived);
     } catch (err) {
       console.error('[WhyTab] archive tab error:', err);
     }
@@ -1281,9 +1413,7 @@ function buildTabRow(tab, collectionId, options = {}) {
 
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
     try {
-      await WhyTabStorage.removeTab(tab.id);
-      await loadData();
-      render();
+      await deleteTabWithUndo(tab.id);
     } catch (err) {
       console.error('[WhyTab] removeTab error:', err);
     }
@@ -1648,9 +1778,18 @@ function updateViewHeader() {
   const actions = $('#view-actions');
   const sortControl = $('#collection-sort-menu');
   const sortDivider = $('#collection-sort-divider');
-  const showSortControl = state.currentView === 'all' && !state.searchQuery.trim() && Boolean(state.settings.showSortControl);
+  const pruneDivider = $('#prune-divider');
+  const pruneBtn = $('#prune-mode-btn');
+  const isAllView = state.currentView === 'all' && !state.searchQuery.trim();
+  const showSortControl = isAllView && Boolean(state.settings.showSortControl) && !state.pruneMode.active;
+  const showPruneButton = state.currentView === 'all' && (!state.searchQuery.trim() || state.pruneMode.active);
+
   sortControl?.classList.toggle('hidden', !showSortControl);
   sortDivider?.classList.toggle('hidden', !showSortControl);
+  pruneBtn?.classList.toggle('hidden', !showPruneButton);
+  pruneDivider?.classList.toggle('hidden', !showPruneButton);
+  pruneBtn?.classList.toggle('active', state.pruneMode.active);
+  if (pruneBtn) pruneBtn.textContent = state.pruneMode.active ? 'Done' : 'Prune';
   renderSortControl();
 
   if (state.searchQuery.trim()) {
@@ -2016,7 +2155,27 @@ function updateSearchPlaceholder() {
   const total = state.collections
     .filter((col) => !col.archived)
     .reduce((sum, col) => sum + col.tabs.filter((tab) => !tab.archived).length, 0);
-  input.placeholder = `Search ${total} tabs...`;
+  input.placeholder = state.pruneMode.active
+    ? `Pruning ${total} tabs...`
+    : `Search ${total} tabs...`;
+}
+
+function animatePruneTally() {
+  const tally = $('#prune-tally');
+  if (!tally) return;
+  tally.classList.remove('tick');
+  tally.offsetHeight;
+  tally.classList.add('tick');
+}
+
+function renderPruneTally() {
+  const tally = $('#prune-tally');
+  if (!tally) return;
+
+  tally.textContent = `${state.pruneMode.archivedCount} archived · ${state.pruneMode.deletedCount} deleted`;
+  const shouldShow = state.pruneMode.active || Date.now() < state.pruneMode.exitDisplayUntil;
+  tally.classList.toggle('hidden', !shouldShow);
+  tally.classList.toggle('fade-out', !state.pruneMode.active && shouldShow);
 }
 
 function renderRecentSearches() {
@@ -2108,6 +2267,49 @@ function highlightPalette() {
 }
 
 
+
+async function archiveTabWithUndo(tabId, archive = true) {
+  const snapshot = await WhyTabStorage.getAll();
+  const hasTab = snapshot.collections.some((col) => col.tabs.some((tab) => tab.id === tabId));
+  if (!hasTab) return;
+
+  await WhyTabStorage.setTabArchived(tabId, archive);
+  await loadData();
+  render();
+  if (archive) incrementPruneTally('archived');
+
+  showToast(`Tab ${archive ? 'archived' : 'restored'}`, {
+    actionLabel: 'Undo',
+    duration: 4000,
+    onAction: async () => {
+      await WhyTabStorage.replaceState(snapshot.collections, snapshot.urlIndex);
+      await loadData();
+      render();
+    },
+  });
+}
+
+async function deleteTabWithUndo(tabId) {
+  const snapshot = await WhyTabStorage.getAll();
+  const hasTab = snapshot.collections.some((col) => col.tabs.some((tab) => tab.id === tabId));
+  if (!hasTab) return;
+
+  await WhyTabStorage.removeTab(tabId);
+  await loadData();
+  render();
+  incrementPruneTally('deleted');
+
+  showToast('Tab deleted', {
+    actionLabel: 'Undo',
+    duration: 4000,
+    onAction: async () => {
+      await WhyTabStorage.replaceState(snapshot.collections, snapshot.urlIndex);
+      await loadData();
+      render();
+    },
+  });
+}
+
 async function archiveCollectionWithUndo(collectionId, archive = true) {
   const snapshot = await WhyTabStorage.getAll();
   const target = snapshot.collections.find((c) => c.id === collectionId);
@@ -2116,6 +2318,7 @@ async function archiveCollectionWithUndo(collectionId, archive = true) {
   await loadData();
   if (state.currentView === collectionId) state.currentView = 'all';
   render();
+  if (archive) incrementPruneTally('archived');
 
   showToast(`Collection ${archive ? 'archived' : 'restored'}`, {
     actionLabel: 'Undo',
@@ -2136,6 +2339,7 @@ async function deleteCollectionWithUndo(collectionId) {
   if (state.currentView === collectionId) state.currentView = 'all';
   await loadData();
   render();
+  incrementPruneTally('deleted');
 
   showToast('Collection deleted', {
     actionLabel: 'Undo',
@@ -2149,20 +2353,37 @@ async function deleteCollectionWithUndo(collectionId) {
 }
 
 // ── Toast ──────────────────────────────────────────────
-function hideToast() {
-  const toast = $('#toast');
-  toast.classList.remove('visible');
-  setTimeout(() => toast.classList.add('hidden'), 200);
+let toastIdCounter = 0;
+const activeToasts = [];
+
+function hideToast(toastId) {
+  const index = activeToasts.findIndex((entry) => entry.id === toastId);
+  if (index === -1) return;
+  const [entry] = activeToasts.splice(index, 1);
+  clearTimeout(entry.timer);
+  entry.el.classList.remove('visible');
+  setTimeout(() => {
+    entry.el.remove();
+  }, 200);
 }
 
 function showToast(msg, options = {}) {
   const { actionLabel = '', onAction = null, duration = 2000 } = options;
-  const toast = $('#toast');
-  toast.innerHTML = '';
+  const stack = $('#toast-stack');
+  if (!stack) return;
+
+  if (activeToasts.length >= 3) {
+    hideToast(activeToasts[0].id);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+
   const text = document.createElement('span');
   text.textContent = msg;
   toast.appendChild(text);
 
+  const toastId = ++toastIdCounter;
   if (actionLabel && onAction) {
     const action = document.createElement('button');
     action.className = 'toast-action';
@@ -2172,19 +2393,21 @@ function showToast(msg, options = {}) {
       try {
         await onAction();
       } finally {
-        hideToast();
+        hideToast(toastId);
       }
     });
     toast.appendChild(action);
   }
 
-  toast.classList.remove('hidden');
+  stack.appendChild(toast);
   toast.offsetHeight;
   toast.classList.add('visible');
-  clearTimeout(showToast._t);
-  showToast._t = setTimeout(() => {
-    hideToast();
+
+  const timer = setTimeout(() => {
+    hideToast(toastId);
   }, duration);
+
+  activeToasts.push({ id: toastId, el: toast, timer });
 }
 
 // ── Helpers ────────────────────────────────────────────
