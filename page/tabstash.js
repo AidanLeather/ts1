@@ -33,7 +33,13 @@ let state = {
     unpinnedOrderIds: [],
     archivedCount: 0,
     deletedCount: 0,
+    keptCount: 0,
     exitDisplayUntil: 0,
+    keptCollectionIds: {},
+    keptTabIds: {},
+    lastFeaturedCollectionId: null,
+    completionReachedAt: 0,
+    lastRenderedCounts: null,
   },
 };
 
@@ -55,6 +61,7 @@ let dragState = {
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
 const PRUNE_TALLY_HOLD_MS = 2000;
+const PRUNE_COMPLETE_HOLD_MS = 3000;
 let inlineEditSession = null;
 let inlineInputModalSession = null;
 const COLLECTION_SORT_OPTIONS = [
@@ -293,6 +300,11 @@ function bindEvents() {
 
   $('#prune-mode-btn')?.addEventListener('click', async () => {
     if (state.pruneMode.active) {
+      const remaining = getPruneRemainingCount();
+      const doneReady = remaining !== 0
+        || !state.pruneMode.completionReachedAt
+        || (Date.now() - state.pruneMode.completionReachedAt >= PRUNE_COMPLETE_HOLD_MS);
+      if (!doneReady) return;
       exitPruneMode();
       await loadData();
       render();
@@ -360,7 +372,9 @@ function getCollectionsForCurrentMode(collections, sortMode) {
   const visibleCollections = collections.filter((c) => c.name !== 'Unsorted');
   const pinned = visibleCollections.filter((c) => c.isPinned);
   const archived = visibleCollections.filter((c) => c.archived);
-  const unpinnedActive = visibleCollections.filter((c) => !c.isPinned && !c.archived);
+  const unpinnedActive = visibleCollections
+    .filter((c) => !c.isPinned && !c.archived)
+    .filter((c) => !state.pruneMode.keptCollectionIds[c.id]);
 
   const frozenOrder = state.pruneMode.unpinnedOrderIds
     .map((id) => unpinnedActive.find((col) => col.id === id))
@@ -378,19 +392,32 @@ function enterPruneMode() {
   state.pruneMode.unpinnedOrderIds = getPruneSortedUnpinnedCollections(unpinnedActive).map((c) => c.id);
   state.pruneMode.archivedCount = 0;
   state.pruneMode.deletedCount = 0;
+  state.pruneMode.keptCount = 0;
   state.pruneMode.exitDisplayUntil = 0;
+  state.pruneMode.keptCollectionIds = {};
+  state.pruneMode.keptTabIds = {};
+  state.pruneMode.lastFeaturedCollectionId = null;
+  state.pruneMode.completionReachedAt = 0;
+  state.pruneMode.lastRenderedCounts = null;
 }
 
 function exitPruneMode() {
   state.pruneMode.active = false;
   state.pruneMode.unpinnedOrderIds = [];
+  state.pruneMode.keptCollectionIds = {};
+  state.pruneMode.keptTabIds = {};
+  state.pruneMode.lastFeaturedCollectionId = null;
+  state.pruneMode.completionReachedAt = 0;
+  state.pruneMode.lastRenderedCounts = null;
   state.pruneMode.exitDisplayUntil = Date.now() + PRUNE_TALLY_HOLD_MS;
   renderPruneTally();
   setTimeout(() => {
     if (Date.now() < state.pruneMode.exitDisplayUntil || state.pruneMode.active) return;
     state.pruneMode.archivedCount = 0;
     state.pruneMode.deletedCount = 0;
+    state.pruneMode.keptCount = 0;
     state.pruneMode.exitDisplayUntil = 0;
+    state.pruneMode.lastRenderedCounts = null;
     renderPruneTally();
   }, PRUNE_TALLY_HOLD_MS + 330);
 }
@@ -405,7 +432,27 @@ function incrementPruneTally(type) {
   if (!amount) return;
   if (type === 'archived') state.pruneMode.archivedCount += amount;
   if (type === 'deleted') state.pruneMode.deletedCount += amount;
+  if (type === 'kept') state.pruneMode.keptCount += amount;
   animatePruneTally();
+}
+
+function getPruneQueueCollections() {
+  return state.collections.filter((c) => !c.isPinned && !c.archived && !state.pruneMode.keptCollectionIds[c.id]);
+}
+
+function getUnresolvedActiveTabs(col) {
+  return (col.tabs || []).filter((tab) => !tab.archived && !state.pruneMode.keptTabIds[tab.id]);
+}
+
+function getPruneRemainingCount() {
+  if (!state.pruneMode.active) return 0;
+  return getPruneQueueCollections()
+    .reduce((sum, col) => sum + getUnresolvedActiveTabs(col).length, 0);
+}
+
+function getFeaturedCollectionId() {
+  const queue = getPruneQueueCollections();
+  return queue.length ? queue[0].id : null;
 }
 
 function formatRelativeActivity(timestamp) {
@@ -762,6 +809,10 @@ function render() {
   } else {
     renderCollectionView(content, empty, state.currentView);
   }
+
+  requestAnimationFrame(() => {
+    handleFeaturedCollectionTransition();
+  });
 }
 
 function renderAllView(content, empty) {
@@ -966,10 +1017,11 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   div.id = `collection-${col.id}`;
 
   const activeTabs = (col.tabs || []).filter((tab) => !tab.archived);
+  const unresolvedActiveTabs = state.pruneMode.active ? getUnresolvedActiveTabs(col) : activeTabs;
   const archivedTabs = (col.tabs || []).filter((tab) => tab.archived);
   const showArchived = Boolean(state.archivedExpanded[col.id]);
-  const visibleTabs = readOnly ? (col.tabs || []) : activeTabs;
-  const countText = `(${activeTabs.length})`;
+  const visibleTabs = readOnly ? (col.tabs || []) : unresolvedActiveTabs;
+  const countText = `(${visibleTabs.length})`;
   const collectionName = state.pruneMode.active && (col.name || '').length > 50
     ? `${(col.name || '').slice(0, 50).trimEnd()}…`
     : (col.name || '');
@@ -983,7 +1035,8 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ? 'collection-name auto-named'
     : 'collection-name user-named';
   const header = document.createElement('div');
-  header.className = `collection-header${collapsible ? '' : ' collection-header--single'}${col.archived ? ' is-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}`;
+  const isFeatured = state.pruneMode.active && getFeaturedCollectionId() === col.id;
+  header.className = `collection-header${collapsible ? '' : ' collection-header--single'}${col.archived ? ' is-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}${isFeatured ? ' prune-featured' : ''}`;
   const isArchivedView = state.currentView === 'archived';
 
   const archivedToggleMenuItem = archivedTabs.length > 0
@@ -1018,11 +1071,17 @@ function buildCollectionBlock(col, readOnly, collapsible) {
       primaryActions.push(`<button class="icon-btn pin-btn" title="Pin">${pinIcon}</button>`);
       menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
     } else {
+      if (state.pruneMode.active) {
+        primaryActions.push('<button class="icon-btn keep-col-btn" title="Keep collection">Keep</button>');
+      }
       primaryActions.push(`<button class="icon-btn archive-col-btn" title="${col.archived ? 'Unarchive' : 'Archive'}">${archiveIcon}</button>`);
       if (showDeleteInToolbar) {
         primaryActions.push('<button class="icon-btn delete-col-btn" title="Delete collection"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5H10.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M4 3.5V2.5H9V3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 3.5L4 10.5H9L9.5 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg></button>');
       }
       menuActions.push('<button class="inline-menu-item pin-btn">Pin</button>');
+      if (state.pruneMode.active) {
+        menuActions.push('<button class="inline-menu-item keep-col-btn">Keep collection</button>');
+      }
     }
 
     if (!showDeleteInToolbar) {
@@ -1061,7 +1120,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   if (collapsible) {
     const accordionState = getAccordionState();
-    if (accordionState[col.id]) {
+    if (accordionState[col.id] && !isFeatured) {
       div.classList.add('collapsed');
     }
 
@@ -1149,19 +1208,25 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     });
   }
 
-  if (!readOnly && activeTabs.length === 0 && archivedTabs.length > 0) {
+  if (!readOnly && visibleTabs.length === 0) {
     const emptyArchived = document.createElement('div');
     emptyArchived.className = 'collection-empty-archived';
-    if (state.pruneMode.active) {
-      emptyArchived.innerHTML = `All tabs archived — <button type="button" class="empty-archive-collection-btn">Archive collection</button>?`;
+    if (state.pruneMode.active && isFeatured) {
+      emptyArchived.innerHTML = `All tabs sorted — remove collection? <button type="button" class="empty-archive-collection-btn">Archive</button> · <button type="button" class="empty-keep-collection-btn">Keep</button>`;
       emptyArchived.querySelector('.empty-archive-collection-btn')?.addEventListener('click', async (event) => {
         event.stopPropagation();
-        await archiveCollectionWithUndo(col.id, true);
+        await archiveCollectionWithUndo(col.id, true, div);
       });
-    } else {
+      emptyArchived.querySelector('.empty-keep-collection-btn')?.addEventListener('click', async (event) => {
+        event.stopPropagation();
+        await keepCollectionInPrune(col.id, div);
+      });
+    } else if (archivedTabs.length > 0) {
       emptyArchived.textContent = 'All tabs archived';
     }
-    body.appendChild(emptyArchived);
+    if (emptyArchived.textContent || emptyArchived.children.length) {
+      body.appendChild(emptyArchived);
+    }
   }
 
   for (const tab of visibleTabs) {
@@ -1221,6 +1286,11 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
     }
   });
 
+  header.querySelectorAll('.keep-col-btn').forEach((btn) => btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await keepCollectionInPrune(col.id, blockEl);
+  }));
+
   header.querySelector('.archive-col-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (col.archived) {
@@ -1234,12 +1304,12 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
       }
       return;
     }
-    await archiveCollectionWithUndo(col.id, true);
+    await archiveCollectionWithUndo(col.id, true, blockEl);
   });
 
   header.querySelector('.delete-col-btn')?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await deleteCollectionWithUndo(col.id);
+    await deleteCollectionWithUndo(col.id, blockEl);
   });
 }
 
@@ -1376,8 +1446,9 @@ function buildTabRow(tab, collectionId, options = {}) {
       <button class="icon-btn edit-btn" title="Edit">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
       </button>
+      ${state.pruneMode.active ? '<button class="icon-btn keep-tab-btn" title="Keep tab">Keep</button>' : ''}
       <button class="icon-btn archive-tab-btn" title="${archiveTitle}">${archiveIcon}</button>
-      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button></div></details>
+      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item move-tab-btn">Move to collection</button>${state.pruneMode.active ? '<button class="inline-menu-item keep-tab-btn">Keep tab</button>' : ''}<button class="inline-menu-item del-tab-btn">Delete</button></div></details>
     </div>
   `;
 
@@ -1418,9 +1489,13 @@ function buildTabRow(tab, collectionId, options = {}) {
     WhyTabStorage.markCollectionInteracted(collectionId);
   });
 
+  row.querySelectorAll('.keep-tab-btn').forEach((btn) => btn.addEventListener('click', async () => {
+    await keepTabInPrune(tab.id, row);
+  }));
+
   row.querySelector('.archive-tab-btn').addEventListener('click', async () => {
     try {
-      await archiveTabWithUndo(tab.id, !archived);
+      await archiveTabWithUndo(tab.id, !archived, row);
     } catch (err) {
       console.error('[WhyTab] archive tab error:', err);
     }
@@ -1438,7 +1513,7 @@ function buildTabRow(tab, collectionId, options = {}) {
 
   row.querySelector('.del-tab-btn').addEventListener('click', async () => {
     try {
-      await deleteTabWithUndo(tab.id);
+      await deleteTabWithUndo(tab.id, row);
     } catch (err) {
       console.error('[WhyTab] removeTab error:', err);
     }
@@ -1816,7 +1891,14 @@ function updateViewHeader() {
   pruneBtn?.classList.toggle('hidden', !showPruneButton);
   pruneDivider?.classList.toggle('hidden', !showPruneButton);
   pruneBtn?.classList.toggle('active', state.pruneMode.active);
-  if (pruneBtn) pruneBtn.textContent = state.pruneMode.active ? 'Done' : 'Prune';
+  if (pruneBtn) {
+    pruneBtn.textContent = state.pruneMode.active ? 'Done' : 'Prune';
+    const remaining = getPruneRemainingCount();
+    const doneReady = !state.pruneMode.active || remaining !== 0
+      || !state.pruneMode.completionReachedAt
+      || (Date.now() - state.pruneMode.completionReachedAt >= PRUNE_COMPLETE_HOLD_MS);
+    pruneBtn.disabled = !doneReady;
+  }
   renderSortControl();
 
   if (state.searchQuery.trim()) {
@@ -2182,29 +2264,70 @@ function updateSearchPlaceholder() {
   const total = state.collections
     .filter((col) => !col.archived)
     .reduce((sum, col) => sum + col.tabs.filter((tab) => !tab.archived).length, 0);
+  const pruneRemaining = getPruneRemainingCount();
   input.placeholder = state.pruneMode.active
-    ? `Pruning ${total} tabs...`
+    ? `Pruning ${pruneRemaining} tabs...`
     : `Search ${total} tabs...`;
 }
 
 function animatePruneTally() {
-  const tally = $('#prune-tally');
-  if (!tally) return;
-  tally.classList.remove('tick');
-  tally.offsetHeight;
-  tally.classList.add('tick');
+  renderPruneTally();
 }
 
 function renderPruneTally() {
   const tally = $('#prune-tally');
   if (!tally) return;
 
-  const archiveLabel = `tab${state.pruneMode.archivedCount === 1 ? '' : 's'} archived`;
-  const deleteLabel = `tab${state.pruneMode.deletedCount === 1 ? '' : 's'} deleted`;
-  tally.textContent = `${state.pruneMode.archivedCount} ${archiveLabel} · ${state.pruneMode.deletedCount} ${deleteLabel}`;
+  const remaining = getPruneRemainingCount();
+  if (state.pruneMode.active && remaining === 0 && !state.pruneMode.completionReachedAt) {
+    state.pruneMode.completionReachedAt = Date.now();
+  }
+
   const shouldShow = state.pruneMode.active || Date.now() < state.pruneMode.exitDisplayUntil;
   tally.classList.toggle('hidden', !shouldShow);
   tally.classList.toggle('fade-out', !state.pruneMode.active && shouldShow);
+  if (!shouldShow) return;
+
+  const prev = state.pruneMode.lastRenderedCounts || {};
+  const next = {
+    archived: state.pruneMode.archivedCount,
+    deleted: state.pruneMode.deletedCount,
+    kept: state.pruneMode.keptCount,
+    remaining,
+  };
+
+  const doneReady = state.pruneMode.active
+    && remaining === 0
+    && state.pruneMode.completionReachedAt
+    && (Date.now() - state.pruneMode.completionReachedAt >= PRUNE_COMPLETE_HOLD_MS);
+
+  if (state.pruneMode.active && remaining === 0) {
+    tally.innerHTML = `
+      <div class="prune-all-sorted">All sorted</div>
+      <div class="prune-summary ${doneReady ? '' : 'hidden'}">${next.archived} tab${next.archived === 1 ? '' : 's'} archived · ${next.deleted} tab${next.deleted === 1 ? '' : 's'} deleted · ${next.kept} tab${next.kept === 1 ? '' : 's'} kept</div>
+    `;
+  } else {
+    tally.innerHTML = `
+      <span class="prune-metric"><span class="prune-value" data-key="archived">${next.archived}</span> tab${next.archived === 1 ? '' : 's'} archived</span>
+      <span class="prune-sep">·</span>
+      <span class="prune-metric"><span class="prune-value" data-key="deleted">${next.deleted}</span> tab${next.deleted === 1 ? '' : 's'} deleted</span>
+      <span class="prune-sep">·</span>
+      <span class="prune-metric"><span class="prune-value" data-key="kept">${next.kept}</span> tab${next.kept === 1 ? '' : 's'} kept</span>
+      <span class="prune-sep">·</span>
+      <span class="prune-metric prune-metric-remaining"><span class="prune-value" data-key="remaining">${next.remaining}</span> remaining</span>
+    `;
+  }
+
+  tally.querySelectorAll('.prune-value').forEach((el) => {
+    const key = el.dataset.key;
+    if (prev[key] !== undefined && prev[key] !== next[key]) {
+      el.classList.remove('tick');
+      el.offsetHeight;
+      el.classList.add('tick');
+    }
+  });
+
+  state.pruneMode.lastRenderedCounts = next;
 }
 
 function renderRecentSearches() {
@@ -2297,12 +2420,69 @@ function highlightPalette() {
 
 
 
-async function archiveTabWithUndo(tabId, archive = true) {
+
+function animatePruneResolve(element, callback) {
+  if (!element) {
+    callback?.();
+    return;
+  }
+  element.classList.add('resolving-out');
+  setTimeout(() => callback?.(), 260);
+}
+
+async function keepTabInPrune(tabId, rowEl) {
+  if (!state.pruneMode.active) return;
+  const target = state.collections.find((col) => (col.tabs || []).some((tab) => tab.id === tabId));
+  const tab = target?.tabs?.find((t) => t.id === tabId);
+  if (!target || !tab || tab.archived || state.pruneMode.keptCollectionIds[target.id] || state.pruneMode.keptTabIds[tabId]) return;
+
+  incrementPruneTally('kept');
+  state.pruneMode.keptTabIds[tabId] = true;
+  animatePruneResolve(rowEl, () => render());
+}
+
+async function keepCollectionInPrune(collectionId, blockEl) {
+  if (!state.pruneMode.active) return;
+  const target = state.collections.find((c) => c.id === collectionId);
+  if (!target || target.archived || target.isPinned || state.pruneMode.keptCollectionIds[collectionId]) return;
+
+  const keepCount = getUnresolvedActiveTabs(target).length;
+  incrementPruneTally({ type: 'kept', count: keepCount });
+  state.pruneMode.keptCollectionIds[collectionId] = true;
+
+  animatePruneResolve(blockEl, () => {
+    render();
+  });
+}
+
+function handleFeaturedCollectionTransition() {
+  if (!state.pruneMode.active || state.currentView !== 'all' || state.searchQuery.trim()) return;
+  const featuredId = getFeaturedCollectionId();
+  if (!featuredId) {
+    if (!state.pruneMode.completionReachedAt) state.pruneMode.completionReachedAt = Date.now();
+    state.pruneMode.lastFeaturedCollectionId = null;
+    return;
+  }
+
+  state.pruneMode.completionReachedAt = 0;
+  if (state.pruneMode.lastFeaturedCollectionId === featuredId) return;
+  state.pruneMode.lastFeaturedCollectionId = featuredId;
+
+  const block = document.getElementById(`collection-${featuredId}`);
+  if (block) {
+    setTimeout(() => {
+      block.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+    }, 10);
+  }
+}
+
+async function archiveTabWithUndo(tabId, archive = true, rowEl = null) {
   const snapshot = await WhyTabStorage.getAll();
   const hasTab = snapshot.collections.some((col) => col.tabs.some((tab) => tab.id === tabId));
   if (!hasTab) return;
 
-  await WhyTabStorage.setTabArchived(tabId, archive);
+  animatePruneResolve(rowEl, async () => {
+    await WhyTabStorage.setTabArchived(tabId, archive);
   await loadData();
   render();
   if (archive) incrementPruneTally('archived');
@@ -2316,14 +2496,16 @@ async function archiveTabWithUndo(tabId, archive = true) {
       render();
     },
   });
+  });
 }
 
-async function deleteTabWithUndo(tabId) {
+async function deleteTabWithUndo(tabId, rowEl = null) {
   const snapshot = await WhyTabStorage.getAll();
   const hasTab = snapshot.collections.some((col) => col.tabs.some((tab) => tab.id === tabId));
   if (!hasTab) return;
 
-  await WhyTabStorage.removeTab(tabId);
+  animatePruneResolve(rowEl, async () => {
+    await WhyTabStorage.removeTab(tabId);
   await loadData();
   render();
   incrementPruneTally('deleted');
@@ -2337,14 +2519,16 @@ async function deleteTabWithUndo(tabId) {
       render();
     },
   });
+  });
 }
 
-async function archiveCollectionWithUndo(collectionId, archive = true) {
+async function archiveCollectionWithUndo(collectionId, archive = true, blockEl = null) {
   const snapshot = await WhyTabStorage.getAll();
   const target = snapshot.collections.find((c) => c.id === collectionId);
   if (!target) return;
   const archivedTabCount = target.tabs.filter((tab) => !tab.archived).length;
-  await WhyTabStorage.setCollectionArchived(collectionId, archive);
+  animatePruneResolve(blockEl, async () => {
+    await WhyTabStorage.setCollectionArchived(collectionId, archive);
   await loadData();
   if (state.currentView === collectionId) state.currentView = 'all';
   render();
@@ -2359,14 +2543,16 @@ async function archiveCollectionWithUndo(collectionId, archive = true) {
       render();
     },
   });
+  });
 }
 
-async function deleteCollectionWithUndo(collectionId) {
+async function deleteCollectionWithUndo(collectionId, blockEl = null) {
   const snapshot = await WhyTabStorage.getAll();
   const target = snapshot.collections.find((c) => c.id === collectionId);
   if (!target) return;
   const deletedTabCount = target.tabs.length;
-  await WhyTabStorage.removeCollection(collectionId);
+  animatePruneResolve(blockEl, async () => {
+    await WhyTabStorage.removeCollection(collectionId);
   if (state.currentView === collectionId) state.currentView = 'all';
   await loadData();
   render();
@@ -2380,6 +2566,7 @@ async function deleteCollectionWithUndo(collectionId) {
       await loadData();
       render();
     },
+  });
   });
 }
 
