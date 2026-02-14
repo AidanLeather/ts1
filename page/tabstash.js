@@ -211,6 +211,7 @@ function bindEvents() {
       setSearchFocusState(true);
     }
     render();
+    updateSearchAffordances();
   });
   $('#search-clear-btn')?.addEventListener('click', () => {
     state.searchQuery = '';
@@ -219,12 +220,15 @@ function bindEvents() {
     render();
     $('#search').focus();
     setSearchFocusState(false);
+    updateSearchAffordances();
   });
   $('#search').addEventListener('focus', () => {
     openSearchPanel();
+    updateSearchAffordances();
   });
   $('#search').addEventListener('blur', () => {
     setTimeout(() => {
+      updateSearchAffordances();
       if (!document.activeElement || !document.activeElement.closest('.search-bar')) {
         closeSearchPanel();
       }
@@ -866,6 +870,20 @@ async function saveAndCloseTabs() {
   }
 }
 
+
+function updateSearchAffordances() {
+  const input = $('#search');
+  const clearBtn = $('#search-clear-btn');
+  const shortcut = $('.search-kbd');
+  if (!input) return;
+
+  const hasQuery = Boolean(input.value.trim());
+  const isFocused = document.activeElement === input;
+
+  clearBtn?.classList.toggle('hidden', !hasQuery);
+  shortcut?.classList.toggle('hidden', hasQuery || isFocused);
+}
+
 // ── Render ─────────────────────────────────────────────
 function render() {
   updateSidebar();
@@ -873,7 +891,7 @@ function render() {
   renderPinTipBanner();
   updateSearchPlaceholder();
   renderPruneTally();
-  $('#search-clear-btn')?.classList.toggle('hidden', !state.searchQuery.trim());
+  updateSearchAffordances();
 
   const content = $('#content');
   const empty = $('#empty-state');
@@ -2071,6 +2089,8 @@ function updateViewHeader() {
   const sortDivider = $('#collection-sort-divider');
   const pruneDivider = $('#prune-divider');
   const pruneBtn = $('#prune-mode-btn');
+  const collapseAllBtn = $('#collapse-all-btn');
+  const expandAllBtn = $('#expand-all-btn');
   const isAllView = state.currentView === 'all' && !state.searchQuery.trim();
   const showSortControl = isAllView && Boolean(state.settings.showSortControl) && !state.pruneMode.active;
   const showPruneButton = state.currentView === 'all' && (!state.searchQuery.trim() || state.pruneMode.active);
@@ -2079,6 +2099,9 @@ function updateViewHeader() {
   sortDivider?.classList.toggle('hidden', !showSortControl);
   pruneBtn?.classList.toggle('hidden', !showPruneButton);
   pruneDivider?.classList.toggle('hidden', !showPruneButton);
+  const hasSearchQuery = Boolean(state.searchQuery.trim());
+  collapseAllBtn?.classList.toggle('hidden', hasSearchQuery);
+  expandAllBtn?.classList.toggle('hidden', hasSearchQuery);
   pruneBtn?.classList.toggle('active', state.pruneMode.active);
   if (pruneBtn) {
     pruneBtn.textContent = state.pruneMode.active ? 'Done' : 'Prune';
