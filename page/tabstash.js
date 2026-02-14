@@ -27,6 +27,7 @@ let state = {
   },
   pendingSidebarCollectionId: null,
   archivedExpanded: {},
+  hasAutoArchiveCheckRun: false,
 };
 
 let dragState = {
@@ -81,6 +82,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadData() {
   try {
+    const settings = await WhyTabStorage.getSettings();
+    if (!state.hasAutoArchiveCheckRun && settings.autoArchiveInactiveSessions) {
+      await WhyTabStorage.autoArchiveInactiveSessions();
+    }
+    state.hasAutoArchiveCheckRun = true;
+
     const data = await WhyTabStorage.getAll();
     state.settings = data.settings;
     state.collections = getCollectionsForDisplay(data.collections, state.settings.collectionSort);
@@ -221,7 +228,7 @@ function bindEvents() {
     });
     if (name && name.trim()) {
       try {
-        const col = await WhyTabStorage.addCollection(name.trim(), []);
+        const col = await WhyTabStorage.addCollection(name.trim(), [], { isUserNamed: true });
         await loadData();
         state.currentView = col.id;
         render();
@@ -301,6 +308,12 @@ function bindEvents() {
       closeSearchPanel();
     }
   });
+}
+
+function getSavedCollections() {
+  return state.collections
+    .filter((c) => c.isUserNamed && !c.isPinned && !c.archived)
+    .sort((a, b) => (b.lastInteractedAt || b.createdAt || 0) - (a.lastInteractedAt || a.createdAt || 0));
 }
 
 function getCollectionsForDisplay(collections, sortMode) {
@@ -625,6 +638,8 @@ function render() {
   if (state.currentView === 'all') {
     renderAllView(content, empty);
     flushPendingSidebarNavigation();
+  } else if (state.currentView === 'saved') {
+    renderSavedView(content, empty);
   } else if (state.currentView === 'archived') {
     renderArchivedView(content, empty);
   } else {
@@ -659,6 +674,27 @@ function renderAllView(content, empty) {
   }
 }
 
+
+function renderSavedView(content, empty) {
+  const savedCollections = getSavedCollections();
+  content.innerHTML = '';
+  if (!savedCollections.length) {
+    setEmptyState({
+      title: 'No saved collections',
+      sub: 'Rename any collection to save it here.',
+      showDescription: false,
+      showCta: false,
+    });
+    empty.classList.remove('hidden');
+    return;
+  }
+
+  empty.classList.add('hidden');
+  content.appendChild(buildCollectionSectionLabel('Saved'));
+  for (const col of savedCollections) {
+    content.appendChild(buildCollectionBlock(col, false, true));
+  }
+}
 
 function renderArchivedView(content, empty) {
   const archivedCollections = state.collections.filter((c) => c.archived);
@@ -984,6 +1020,7 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
       });
     }
     WhyTabStorage.logAction('open', { collectionId: col.id, tabCount: activeTabs.length });
+    WhyTabStorage.markCollectionInteracted(col.id);
     showToast(`Opened ${activeTabs.length} tab${activeTabs.length !== 1 ? 's' : ''}`);
   });
 
@@ -1190,12 +1227,14 @@ function buildTabRow(tab, collectionId, options = {}) {
     if (dragState.suppressTabClickId === tab.id) return;
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
     WhyTabStorage.logAction('open', { tabId: tab.id });
+    WhyTabStorage.markCollectionInteracted(collectionId);
   });
   bindUrlTooltip(row.querySelector('.tab-title'));
   row.querySelector('.open-btn').addEventListener('click', () => {
     if (dragState.suppressTabClickId === tab.id) return;
     chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
     WhyTabStorage.logAction('open', { tabId: tab.id });
+    WhyTabStorage.markCollectionInteracted(collectionId);
   });
 
   row.querySelector('.archive-tab-btn').addEventListener('click', async () => {
@@ -1419,7 +1458,21 @@ function updateSidebar() {
   const list = $('#sidebar-collections');
   list.innerHTML = '';
   const systemList = $('#sidebar-system');
-  if (systemList) systemList.innerHTML = '';
+  if (systemList) {
+    systemList.innerHTML = '';
+    const savedBtn = document.createElement('button');
+    savedBtn.className = 'nav-item nav-item-muted nav-item-archived';
+    savedBtn.dataset.view = 'saved';
+    savedBtn.textContent = 'Saved';
+    savedBtn.classList.toggle('active', state.currentView === 'saved');
+    savedBtn.addEventListener('click', () => {
+      state.currentView = 'saved';
+      state.searchQuery = '';
+      $('#search').value = '';
+      render();
+    });
+    systemList.appendChild(savedBtn);
+  }
 
   const isUnsorted = (col) => col.name === 'Unsorted';
   const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c) && !c.archived);
@@ -1595,6 +1648,12 @@ function updateViewHeader() {
     title.textContent = 'All Tabs';
     count.textContent = total ? `(${total})` : '';
     actions.classList.toggle('hidden', state.collections.length === 0);
+  } else if (state.currentView === 'saved') {
+    viewHeader.classList.remove('hidden');
+    const savedCount = getSavedCollections().length;
+    title.textContent = 'Saved';
+    count.textContent = savedCount ? `(${savedCount})` : '';
+    actions.classList.toggle('hidden', state.collections.length === 0);
   } else if (state.currentView === 'archived') {
     viewHeader.classList.remove('hidden');
     const totalArchived = state.collections.filter((c) => c.archived).length;
@@ -1695,6 +1754,9 @@ function openSettings() {
   const showSortControlEl = $('#setting-show-sort-control');
   showSortControlEl.checked = Boolean(s.showSortControl);
 
+  const autoArchiveEl = $('#setting-auto-archive-inactive');
+  autoArchiveEl.checked = s.autoArchiveInactiveSessions !== false;
+
   replaceWithClone('#setting-show-item-urls', async (el) => {
     try {
       await WhyTabStorage.saveSettings({ ...state.settings, showItemUrls: el.checked });
@@ -1720,6 +1782,22 @@ function openSettings() {
     try {
       await WhyTabStorage.saveSettings({ ...state.settings, showSortControl: el.checked });
       state.settings = await WhyTabStorage.getSettings();
+      render();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[WhyTab] save settings error:', err);
+    }
+  }, 'change');
+
+
+  replaceWithClone('#setting-auto-archive-inactive', async (el) => {
+    try {
+      await WhyTabStorage.saveSettings({ ...state.settings, autoArchiveInactiveSessions: el.checked });
+      state.settings = await WhyTabStorage.getSettings();
+      if (state.settings.autoArchiveInactiveSessions) {
+        await WhyTabStorage.autoArchiveInactiveSessions();
+        await loadData();
+      }
       render();
       showToast('Saved');
     } catch (err) {
@@ -1768,7 +1846,7 @@ const COMMANDS = [
       confirmLabel: 'Create',
     });
     if (name?.trim()) {
-      const col = await WhyTabStorage.addCollection(name.trim(), []);
+      const col = await WhyTabStorage.addCollection(name.trim(), [], { isUserNamed: true });
       await loadData(); state.currentView = col.id; render();
     }
   }},
