@@ -29,6 +29,7 @@ let state = {
   pendingSidebarCollectionId: null,
   archivedExpanded: {},
   hasAutoArchiveCheckRun: false,
+  hasSeenPinTip: false,
   pruneMode: {
     active: false,
     unpinnedOrderIds: [],
@@ -66,6 +67,7 @@ const PRUNE_ENTRY_SCROLL_MS = 720;
 const PRUNE_EXIT_SCROLL_MS = 500;
 const PRUNE_SCROLL_TOP_OFFSET = 40;
 const KEEP_PERSIST_MS = 7 * 24 * 60 * 60 * 1000;
+const PIN_TIP_DISMISSED_KEY = 'hasSeenPinTip';
 let inlineEditSession = null;
 let inlineInputModalSession = null;
 const COLLECTION_SORT_OPTIONS = [
@@ -92,6 +94,7 @@ async function setAccordionState(nextState) {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
   await loadRecentSearches();
+  await loadPinTipPreference();
   render();
   bindEvents();
   bindKeyboard();
@@ -115,6 +118,47 @@ async function loadData() {
   } catch (err) {
     console.error('[WhyTab] loadData error:', err);
   }
+}
+
+
+async function loadPinTipPreference() {
+  try {
+    const data = await chrome.storage.local.get(PIN_TIP_DISMISSED_KEY);
+    state.hasSeenPinTip = Boolean(data[PIN_TIP_DISMISSED_KEY]);
+  } catch (err) {
+    console.error('[WhyTab] load pin tip preference error:', err);
+    state.hasSeenPinTip = false;
+  }
+}
+
+function renderPinTipBanner() {
+  const banner = $('#pin-tip-banner');
+  if (!banner) return;
+  banner.classList.toggle('hidden', state.hasSeenPinTip);
+}
+
+async function dismissPinTip() {
+  state.hasSeenPinTip = true;
+  renderPinTipBanner();
+  try {
+    await chrome.storage.local.set({ [PIN_TIP_DISMISSED_KEY]: true });
+  } catch (err) {
+    console.error('[WhyTab] save pin tip preference error:', err);
+  }
+}
+
+async function openTabFromWhyTab(url, { active = true } = {}) {
+  const createOptions = { url, active };
+  try {
+    const whyTabTab = await chrome.tabs.getCurrent();
+    if (whyTabTab?.id) {
+      createOptions.openerTabId = whyTabTab.id;
+    }
+  } catch (err) {
+    console.warn('[WhyTab] could not resolve current WhyTab tab id:', err);
+  }
+
+  return chrome.tabs.create(createOptions);
 }
 
 // ── Real-time storage listener ─────────────────────────
@@ -141,6 +185,7 @@ function faviconUrl(url) {
 // ── Events ─────────────────────────────────────────────
 function bindEvents() {
   document.addEventListener('dragover', handleGlobalDragOver);
+  $('#pin-tip-dismiss')?.addEventListener('click', dismissPinTip);
 
   // Sidebar: "All Tabs"
   $$('.nav-item[data-view]').forEach((btn) => {
@@ -825,6 +870,7 @@ async function saveAndCloseTabs() {
 function render() {
   updateSidebar();
   updateViewHeader();
+  renderPinTipBanner();
   updateSearchPlaceholder();
   renderPruneTally();
   $('#search-clear-btn')?.classList.toggle('hidden', !state.searchQuery.trim());
@@ -1146,6 +1192,7 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
   const isFeatured = state.pruneMode.active && getFeaturedCollectionId() === col.id;
   header.className = `collection-header${collapsible ? '' : ' collection-header--single'}${col.archived ? ' is-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}${isFeatured ? ' prune-featured' : ''}`;
   const isArchivedView = state.currentView === 'archived';
+  const allowTabDnD = !readOnly || isSearchResultsView;
 
   const archivedToggleMenuItem = archivedTabs.length > 0
     ? `<button class="inline-menu-item toggle-archived-tabs-btn">${showArchived ? 'Hide archived' : 'Show archived'}</button>`
@@ -1279,7 +1326,7 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
         e.preventDefault();
         div.classList.add('drag-target');
       }
-      if (dragState.type === 'tab') {
+      if (allowTabDnD && dragState.type === 'tab') {
         e.preventDefault();
         div.classList.add('drag-target');
       }
@@ -1294,10 +1341,28 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
         if (!dragState.collectionId || dragState.collectionId === col.id) return;
         await reorderCollectionsWithinGroup(Boolean(col.isPinned), dragState.collectionId, col.id);
       }
-      if (dragState.type === 'tab') {
+      if (allowTabDnD && dragState.type === 'tab') {
         clearTabDropIndicator();
         await moveDraggedTabToCollection(col.id);
       }
+    });
+  }
+
+  if (readOnly && allowTabDnD) {
+    header.addEventListener('dragover', (e) => {
+      if (dragState.type !== 'tab') return;
+      e.preventDefault();
+      div.classList.add('drag-target');
+    });
+    header.addEventListener('dragleave', () => {
+      div.classList.remove('drag-target');
+    });
+    header.addEventListener('drop', async (e) => {
+      if (dragState.type !== 'tab') return;
+      e.preventDefault();
+      div.classList.remove('drag-target');
+      clearTabDropIndicator();
+      await moveDraggedTabToCollection(col.id);
     });
   }
 
@@ -1307,7 +1372,7 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
   const body = document.createElement('div');
   body.className = 'collection-body';
 
-  if (!readOnly) {
+  if (allowTabDnD) {
     body.addEventListener('dragover', (e) => {
       if (dragState.type !== 'tab' || !dragState.tabId || div.classList.contains('collapsed')) return;
       e.preventDefault();
@@ -1347,7 +1412,11 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
   }
 
   for (const tab of visibleTabs) {
-    body.appendChild(buildTabRow(tab, col.id, { inSearch: isSearchResultsView || readOnly, searchQuery: options.searchQuery }));
+    body.appendChild(buildTabRow(tab, col.id, {
+      inSearch: isSearchResultsView || readOnly,
+      searchQuery: options.searchQuery,
+      allowDrag: allowTabDnD,
+    }));
   }
 
   if (!readOnly && archivedTabs.length > 0 && showArchived) {
@@ -1378,7 +1447,7 @@ function bindCollectionActions(header, col, activeTabs, blockEl) {
   header.querySelector('.restore-all-btn')?.addEventListener('click', (e) => {
     e.stopPropagation();
     for (const t of activeTabs) {
-      chrome.tabs.create({ url: t.url, active: false }).catch((err) => {
+      openTabFromWhyTab(t.url, { active: false }).catch((err) => {
         console.warn('[WhyTab] Error opening tab:', err);
       });
     }
@@ -1507,27 +1576,20 @@ function buildAddTabForm(collectionId) {
 
 // ── Tab row ────────────────────────────────────────────
 function buildTabRow(tab, collectionId, options = {}) {
-  const { archived = Boolean(tab.archived), inSearch = false, searchQuery = "" } = options;
+  const { archived = Boolean(tab.archived), inSearch = false, searchQuery = "", allowDrag = true } = options;
   const row = document.createElement('div');
   row.className = `tab-row${archived || tab.collectionArchived ? ' tab-row-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}`;
   row.dataset.id = tab.id;
-  row.draggable = !inSearch;
+  row.draggable = allowDrag;
 
   const tags = tab.tags || [];
-  const hasSearchQuery = Boolean(searchQuery.trim());
 
   const icon = faviconUrl(tab.url);
   const favicon = icon
     ? `<img class="tab-favicon" src="${escAttr(icon)}" alt="" loading="lazy">`
     : '<div class="tab-favicon-placeholder"></div>';
 
-  const tagHtml = tags.map((t) => {
-    if (inSearch) {
-      const tagMatchesQuery = hasSearchQuery && t.toLowerCase().includes(searchQuery.toLowerCase());
-      return `<span class="tag-chip tag-chip-search${tagMatchesQuery ? ' tag-chip-search-match' : ''}" data-tag="${escAttr(t)}">#${highlightText(t, searchQuery)}</span>`;
-    }
-    return `<span class="tag-chip" data-tag="${escAttr(t)}">${escHtml(t)}<button class="tag-remove" title="Remove tag">×</button></span>`;
-  }).join('');
+  const tagHtml = tags.map((t) => (`<span class="tag-chip" data-tag="${escAttr(t)}">${escHtml(t)}<button class="tag-remove" title="Remove tag">×</button></span>`)).join('');
 
   const showDate = shouldShowTimestamp(tab.savedAt);
   const tabActivityText = state.pruneMode.active ? formatRelativeActivity(tab.lastAccessedAt ?? null) : '';
@@ -1547,19 +1609,18 @@ function buildTabRow(tab, collectionId, options = {}) {
     : '<button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button>';
 
   row.innerHTML = `
-    ${inSearch ? '' : `<span class="tab-drag-handle" aria-hidden="true" title="Drag tab">
+    ${allowDrag ? `<span class="tab-drag-handle" aria-hidden="true" title="Drag tab">
       <svg width="10" height="14" viewBox="0 0 10 14" fill="none">
         <circle cx="2" cy="2" r="1" fill="currentColor"/><circle cx="8" cy="2" r="1" fill="currentColor"/>
         <circle cx="2" cy="7" r="1" fill="currentColor"/><circle cx="8" cy="7" r="1" fill="currentColor"/>
         <circle cx="2" cy="12" r="1" fill="currentColor"/><circle cx="8" cy="12" r="1" fill="currentColor"/>
       </svg>
-    </span>`}
+    </span>` : ''}
     ${favicon}
     <div class="tab-info">
       <div class="tab-title-row">
         <span class="tab-title" data-url="${escAttr(tab.url)}">${inSearch ? highlightText(tab.title, searchQuery) : escHtml(tab.title)}</span>
-        ${(inSearch && tags.length) ? `<div class="tag-container tag-container-search">${tagHtml}</div>` : ''}
-        ${(!inSearch) ? `<div class="tag-container">${tagHtml}<button class="tag-add-btn" title="Add tag">+</button></div>` : ''}
+        <div class="tag-container">${tagHtml}<button class="tag-add-btn" title="Add tag">+</button></div>
       </div>
       ${state.settings.showItemUrls ? `<div class="tab-url">${inSearch ? highlightText(tab.url, searchQuery) : escHtml(tab.url)}</div>` : ''}
     </div>
@@ -1573,7 +1634,7 @@ function buildTabRow(tab, collectionId, options = {}) {
     </div>
   `;
 
-  if (!inSearch) {
+  if (allowDrag) {
     row.addEventListener('dragstart', (e) => {
       dragState.type = 'tab';
       dragState.tabId = tab.id;
@@ -1596,16 +1657,16 @@ function buildTabRow(tab, collectionId, options = {}) {
     });
   }
 
-  row.querySelector('.tab-title').addEventListener('click', () => {
+  row.querySelector('.tab-title').addEventListener('click', async () => {
     if (dragState.suppressTabClickId === tab.id) return;
-    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
+    await openTabFromWhyTab(tab.url).catch((err) => console.warn('[WhyTab] open error:', err));
     WhyTabStorage.logAction('open', { tabId: tab.id });
     WhyTabStorage.markCollectionInteracted(collectionId);
   });
   bindUrlTooltip(row.querySelector('.tab-title'));
-  row.querySelector('.open-btn').addEventListener('click', () => {
+  row.querySelector('.open-btn').addEventListener('click', async () => {
     if (dragState.suppressTabClickId === tab.id) return;
-    chrome.tabs.create({ url: tab.url }).catch((err) => console.warn('[WhyTab] open error:', err));
+    await openTabFromWhyTab(tab.url).catch((err) => console.warn('[WhyTab] open error:', err));
     WhyTabStorage.logAction('open', { tabId: tab.id });
     WhyTabStorage.markCollectionInteracted(collectionId);
   });
@@ -1621,13 +1682,6 @@ function buildTabRow(tab, collectionId, options = {}) {
       console.error('[WhyTab] archive tab error:', err);
     }
   });
-
-  if (inSearch) {
-    row.querySelector('.edit-btn')?.remove();
-    row.querySelector('.archive-tab-btn')?.remove();
-    row.querySelector('.tab-menu')?.remove();
-    return row;
-  }
 
   row.querySelector('.edit-btn').addEventListener('click', () => startInlineTabEdit(row, tab, 'title'));
 
@@ -1835,7 +1889,8 @@ function updateSidebar() {
     const savedBtn = document.createElement('button');
     savedBtn.className = 'nav-item nav-item-muted nav-item-archived';
     savedBtn.dataset.view = 'saved';
-    savedBtn.textContent = 'Named';
+    const namedCount = getSavedCollections().length;
+    savedBtn.innerHTML = `Named${namedCount ? ` <span class="sidebar-col-count">(${namedCount})</span>` : ''}`;
     savedBtn.classList.toggle('active', state.currentView === 'saved');
     savedBtn.addEventListener('click', () => {
       state.currentView = 'saved';
