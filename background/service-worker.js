@@ -22,29 +22,37 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Rebuild URL index on install/update (ensures consistency)
   await WhyTabStorage.rebuildUrlIndex();
 
+  await ensureStarterCollections();
+});
 
-  // On first install, create suggested pinned collections
-  if (details.reason === 'install') {
-    await createSuggestedTemplates();
-  }
+chrome.runtime.onStartup.addListener(async () => {
+  await ensureStarterCollections();
 });
 
 // ── Suggested pinned templates ─────────────────────────
 
-async function createSuggestedTemplates() {
-  const collections = await WhyTabStorage.getCollections();
-  if (collections.length > 0) return;
+async function ensureStarterCollections() {
+  const data = await chrome.storage.local.get(['collections', 'hasCompletedOnboarding']);
+  if (data.hasCompletedOnboarding) return;
+
+  const collections = Array.isArray(data.collections) ? data.collections : [];
+  const tabCount = collections.reduce((sum, col) => sum + ((col.tabs || []).length), 0);
+  if (collections.length > 0 || tabCount > 0) {
+    await chrome.storage.local.set({ hasCompletedOnboarding: true });
+    return;
+  }
 
   const templates = [
-    { name: 'Morning routine', isPinned: true },
-    { name: 'Deep work', isPinned: true },
-    { name: 'Research stack', isPinned: true },
+    { name: 'Reading list' },
+    { name: 'Inspiration' },
   ];
 
   for (const tmpl of templates) {
-    await WhyTabStorage.addCollection(tmpl.name, [], { isPinned: true });
+    await WhyTabStorage.addCollection(tmpl.name, [], { isPinned: true, isUserNamed: true });
   }
-  console.log('[WhyTab SW] Created suggested pinned collections.');
+
+  await chrome.storage.local.set({ hasCompletedOnboarding: true });
+  console.log('[WhyTab SW] Created starter pinned collections.');
 }
 
 // ── Message handling ───────────────────────────────────

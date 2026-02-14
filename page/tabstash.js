@@ -30,6 +30,20 @@ let state = {
   archivedExpanded: {},
   hasAutoArchiveCheckRun: false,
   hasSeenPinTip: false,
+  nudges: {
+    flags: {
+      hasSeenFirstSaveNudge: false,
+      hasSeenPruneNudge: false,
+      hasSeenNamedNudge: false,
+      hasSeenShortcutNudge: false,
+    },
+    openCount: 0,
+    active: null,
+    activeMeta: null,
+    activeTimer: null,
+    pendingFirstSaveCollectionId: null,
+    pendingNamedNudge: false,
+  },
   pruneMode: {
     active: false,
     unpinnedOrderIds: [],
@@ -67,6 +81,14 @@ const PRUNE_ENTRY_SCROLL_MS = 720;
 const PRUNE_EXIT_SCROLL_MS = 500;
 const PRUNE_SCROLL_TOP_OFFSET = 40;
 const PIN_TIP_DISMISSED_KEY = 'hasSeenPinTip';
+const NUDGE_STORAGE_KEYS = {
+  firstSave: 'hasSeenFirstSaveNudge',
+  prune: 'hasSeenPruneNudge',
+  named: 'hasSeenNamedNudge',
+  shortcut: 'hasSeenShortcutNudge',
+  onboarding: 'hasCompletedOnboarding',
+  openCount: 'openCount',
+};
 let inlineEditSession = null;
 let inlineInputModalSession = null;
 const COLLECTION_SORT_OPTIONS = [
@@ -124,7 +146,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadData();
   await loadRecentSearches();
   await loadPinTipPreference();
+  await loadNudgeState();
   render();
+  await maybeShowContextualNudge();
   bindEvents();
   bindKeyboard();
   bindStorageListener();
@@ -144,6 +168,7 @@ async function loadData() {
     state.collections = getCollectionsForCurrentMode(data.collections, state.settings.collectionSort);
     state.urlIndex = data.urlIndex;
     console.log(`[WhyTab] Loaded ${state.collections.length} collections`);
+    await maybeShowContextualNudge();
   } catch (err) {
     console.error('[WhyTab] loadData error:', err);
   }
@@ -169,11 +194,124 @@ function renderPinTipBanner() {
 async function dismissPinTip() {
   state.hasSeenPinTip = true;
   renderPinTipBanner();
+  renderContextualBannerNudge();
   try {
     await chrome.storage.local.set({ [PIN_TIP_DISMISSED_KEY]: true });
   } catch (err) {
     console.error('[WhyTab] save pin tip preference error:', err);
   }
+}
+
+
+async function loadNudgeState() {
+  try {
+    const stored = await chrome.storage.local.get([
+      NUDGE_STORAGE_KEYS.firstSave,
+      NUDGE_STORAGE_KEYS.prune,
+      NUDGE_STORAGE_KEYS.named,
+      NUDGE_STORAGE_KEYS.shortcut,
+      NUDGE_STORAGE_KEYS.openCount,
+    ]);
+
+    state.nudges.flags.hasSeenFirstSaveNudge = Boolean(stored[NUDGE_STORAGE_KEYS.firstSave]);
+    state.nudges.flags.hasSeenPruneNudge = Boolean(stored[NUDGE_STORAGE_KEYS.prune]);
+    state.nudges.flags.hasSeenNamedNudge = Boolean(stored[NUDGE_STORAGE_KEYS.named]);
+    state.nudges.flags.hasSeenShortcutNudge = Boolean(stored[NUDGE_STORAGE_KEYS.shortcut]);
+
+    const priorOpenCount = Number(stored[NUDGE_STORAGE_KEYS.openCount]) || 0;
+    state.nudges.openCount = priorOpenCount + 1;
+    await chrome.storage.local.set({ [NUDGE_STORAGE_KEYS.openCount]: state.nudges.openCount });
+  } catch (err) {
+    console.error('[WhyTab] load nudge state error:', err);
+  }
+}
+
+function clearActiveNudge() {
+  if (state.nudges.activeTimer) {
+    clearTimeout(state.nudges.activeTimer);
+    state.nudges.activeTimer = null;
+  }
+  state.nudges.active = null;
+  state.nudges.activeMeta = null;
+}
+
+function dismissCurrentNudge() {
+  clearActiveNudge();
+  render();
+}
+
+async function markNudgeSeen(type) {
+  const keyByType = {
+    firstSave: NUDGE_STORAGE_KEYS.firstSave,
+    prune: NUDGE_STORAGE_KEYS.prune,
+    named: NUDGE_STORAGE_KEYS.named,
+    shortcut: NUDGE_STORAGE_KEYS.shortcut,
+  };
+  const key = keyByType[type];
+  if (!key) return;
+  state.nudges.flags[`hasSeen${type[0].toUpperCase()}${type.slice(1)}Nudge`] = true;
+  await chrome.storage.local.set({ [key]: true });
+}
+
+function countUnsortedSessions() {
+  return state.collections.filter((c) => !c.archived && !c.isUserNamed).length;
+}
+
+async function maybeShowContextualNudge() {
+  if (state.pruneMode.active || state.nudges.active) return;
+
+  if (state.nudges.pendingFirstSaveCollectionId && !state.nudges.flags.hasSeenFirstSaveNudge) {
+    state.nudges.active = 'firstSave';
+    state.nudges.activeMeta = { collectionId: state.nudges.pendingFirstSaveCollectionId };
+    state.nudges.pendingFirstSaveCollectionId = null;
+    await markNudgeSeen('firstSave');
+    state.nudges.activeTimer = setTimeout(() => {
+      if (state.nudges.active === 'firstSave') {
+        clearActiveNudge();
+        render();
+      }
+    }, 15000);
+    render();
+    return;
+  }
+
+  const unsortedCount = countUnsortedSessions();
+  if (!state.nudges.flags.hasSeenPruneNudge && unsortedCount >= 5) {
+    state.nudges.active = 'prune';
+    state.nudges.activeMeta = { count: unsortedCount };
+    await markNudgeSeen('prune');
+    render();
+    return;
+  }
+
+  if (state.nudges.pendingNamedNudge && !state.nudges.flags.hasSeenNamedNudge) {
+    state.nudges.pendingNamedNudge = false;
+    await markNudgeSeen('named');
+    showToast('Your named collections are always in the Named view in the sidebar.');
+    return;
+  }
+
+  if (!state.nudges.flags.hasSeenShortcutNudge && state.nudges.openCount >= 5) {
+    await markNudgeSeen('shortcut');
+    showToast('Tip: Press ⌘K to open the command palette for quick actions.');
+  }
+}
+
+function renderContextualBannerNudge() {
+  const banner = $('#contextual-nudge-banner');
+  if (!banner) return;
+
+  if (state.pruneMode.active || state.nudges.active !== 'prune') {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  const text = $('#contextual-nudge-text');
+  const tryBtn = $('#contextual-nudge-try');
+  const count = state.nudges.activeMeta?.count || 0;
+  text.textContent = `You've got ${count} unsorted sessions. Try Prune mode to sort through them.`;
+  tryBtn?.classList.remove('hidden');
+  banner.classList.remove('hidden');
 }
 
 async function openTabFromWhyTab(url, { active = true } = {}) {
@@ -215,6 +353,11 @@ function faviconUrl(url) {
 function bindEvents() {
   document.addEventListener('dragover', handleGlobalDragOver);
   $('#pin-tip-dismiss')?.addEventListener('click', dismissPinTip);
+  $('#contextual-nudge-dismiss')?.addEventListener('click', dismissCurrentNudge);
+  $('#contextual-nudge-try')?.addEventListener('click', async () => {
+    dismissCurrentNudge();
+    await togglePruneMode();
+  });
 
   // Sidebar: "All Tabs"
   $$('.nav-item[data-view]').forEach((btn) => {
@@ -466,6 +609,7 @@ function getCollectionsForCurrentMode(collections, sortMode) {
 }
 
 function enterPruneMode() {
+  clearActiveNudge();
   const visibleCollections = state.collections.filter((c) => c.name !== 'Unsorted');
   const unpinnedActive = visibleCollections
     .filter((c) => !c.isPinned && !c.archived)
@@ -836,16 +980,16 @@ async function saveTabsToCollection(saveable, createdAt) {
     for (const tab of saveable) {
       await WhyTabStorage.addManualTab(duplicate.id, tab.title || tab.url, tab.url);
     }
-    return { name: duplicate.name, merged: true };
+    return { name: duplicate.name, merged: true, collectionId: duplicate.id, createdNew: false };
   }
 
   const hasSameName = allCollections.some((c) => c.name === baseName);
   const name = hasSameName ? formatCollectionNameWithTime(new Date(createdAt)) : baseName;
-  await WhyTabStorage.addCollection(name, saveable, {
+  const created = await WhyTabStorage.addCollection(name, saveable, {
     createdAt,
     autoTitleType: hasSameName ? undefined : 'timeOfDay',
   });
-  return { name, merged: false };
+  return { name, merged: false, collectionId: created.id, createdNew: true };
 }
 
 async function saveAllTabs() {
@@ -879,10 +1023,14 @@ async function saveAndCloseTabs() {
     }
 
     const createdAt = Date.now();
-    await saveTabsToCollection(saveable, createdAt);
+    const result = await saveTabsToCollection(saveable, createdAt);
     const pageUrl = chrome.runtime.getURL('page/tabstash.html');
     await closeTabs(tabs, pageUrl);
     await loadData();
+    if (result.createdNew && !state.nudges.flags.hasSeenFirstSaveNudge) {
+      state.nudges.pendingFirstSaveCollectionId = result.collectionId;
+      await maybeShowContextualNudge();
+    }
     render();
     showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
   } catch (err) {
@@ -910,6 +1058,7 @@ function render() {
   updateSidebar();
   updateViewHeader();
   renderPinTipBanner();
+  renderContextualBannerNudge();
   updateSearchPlaceholder();
   renderPruneTally();
   updateSearchAffordances();
@@ -1473,6 +1622,15 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
   }
 
   div.appendChild(body);
+
+  if (!state.pruneMode.active && state.nudges.active === 'firstSave' && state.nudges.activeMeta?.collectionId === col.id) {
+    const nudge = document.createElement('div');
+    nudge.className = 'collection-inline-nudge';
+    nudge.innerHTML = '<span>Want to keep this? Give it a name to save it, or pin it for quick access.</span><button class="collection-inline-nudge-dismiss" type="button" aria-label="Dismiss nudge">&times;</button>';
+    nudge.querySelector('.collection-inline-nudge-dismiss')?.addEventListener('click', dismissCurrentNudge);
+    div.appendChild(nudge);
+  }
+
   return div;
 }
 
@@ -2187,8 +2345,13 @@ function startInlineRename(blockEl, col) {
     const v = input.value.trim();
     if (v && v !== current) {
       try {
+        const becameNamed = !col.isUserNamed;
         await WhyTabStorage.renameCollection(col.id, v);
         await loadData();
+        if (becameNamed && !state.nudges.flags.hasSeenNamedNudge) {
+          state.nudges.pendingNamedNudge = true;
+          await maybeShowContextualNudge();
+        }
       } catch (err) {
         console.error('[WhyTab] rename error:', err);
       }
@@ -2238,6 +2401,42 @@ function closeMoveModal() {
   $('#move-modal').classList.add('hidden');
 }
 
+let pendingImportData = null;
+
+function validateImportPayload(payload) {
+  if (!payload || typeof payload !== 'object') return null;
+  if (!Array.isArray(payload.collections)) return null;
+
+  const normalized = {
+    collections: payload.collections,
+    settings: payload.settings && typeof payload.settings === 'object' ? payload.settings : {},
+    actionLog: Array.isArray(payload.actionLog) ? payload.actionLog : [],
+  };
+
+  if (payload.urlIndex && typeof payload.urlIndex === 'object') {
+    normalized.urlIndex = payload.urlIndex;
+  } else {
+    const idx = {};
+    for (const col of normalized.collections) {
+      for (const tab of (col.tabs || [])) {
+        if (!tab?.url) continue;
+        idx[tab.url] = (idx[tab.url] || 0) + 1;
+      }
+    }
+    normalized.urlIndex = idx;
+  }
+
+  return normalized;
+}
+
+function resetImportUi() {
+  pendingImportData = null;
+  $('#setting-import-error')?.classList.add('hidden');
+  $('#setting-import-confirm')?.classList.add('hidden');
+  const fileInput = $('#setting-import-file');
+  if (fileInput) fileInput.value = '';
+}
+
 // ── Settings ───────────────────────────────────────────
 function syncAutoArchiveDaysVisibility() {
   const row = $('#setting-auto-archive-days-row');
@@ -2256,6 +2455,7 @@ function openSettings() {
   $('#setting-auto-archive-after-days').value = String(getAutoArchiveAfterDays(s));
   $('#setting-keep-duration-days').value = String(getKeepDurationDays(s));
   syncAutoArchiveDaysVisibility();
+  resetImportUi();
 
   replaceWithClone('#setting-show-item-urls', async (el) => {
     try {
@@ -2340,6 +2540,57 @@ function openSettings() {
     }
   }, 'change');
 
+  replaceWithClone('#setting-import-btn', () => {
+    $('#setting-import-file')?.click();
+  }, 'click');
+
+  replaceWithClone('#setting-import-file', async (el) => {
+    const file = el.files?.[0];
+    if (!file) return;
+
+    pendingImportData = null;
+    $('#setting-import-error')?.classList.add('hidden');
+    $('#setting-import-confirm')?.classList.add('hidden');
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const valid = validateImportPayload(parsed);
+      if (!valid) throw new Error('invalid');
+      pendingImportData = valid;
+      $('#setting-import-confirm')?.classList.remove('hidden');
+    } catch (err) {
+      console.warn('[WhyTab] invalid import file:', err);
+      $('#setting-import-error')?.classList.remove('hidden');
+    }
+  }, 'change');
+
+  replaceWithClone('#setting-import-cancel-btn', () => {
+    resetImportUi();
+  }, 'click');
+
+  replaceWithClone('#setting-import-confirm-btn', async () => {
+    if (!pendingImportData) return;
+    try {
+      await chrome.storage.local.clear();
+      await chrome.storage.local.set({
+        collections: pendingImportData.collections,
+        urlIndex: pendingImportData.urlIndex,
+        settings: pendingImportData.settings,
+        actionLog: pendingImportData.actionLog,
+      });
+      await loadData();
+      clearActiveNudge();
+      resetImportUi();
+      closeSettings();
+      render();
+      showToast('Data imported successfully.');
+    } catch (err) {
+      console.error('[WhyTab] import error:', err);
+      $('#setting-import-error')?.classList.remove('hidden');
+    }
+  }, 'click');
+
   replaceWithClone('#setting-export-btn', async () => {
     try {
       const data = await WhyTabStorage.getAll();
@@ -2360,6 +2611,7 @@ function openSettings() {
 }
 
 function closeSettings() {
+  resetImportUi();
   $('#settings-overlay').classList.add('hidden');
 }
 
@@ -2417,6 +2669,7 @@ async function togglePruneMode() {
   else enterPruneMode();
   await loadData();
   render();
+  await maybeShowContextualNudge();
 }
 
 async function goToCollectionFromCommand(collectionId) {

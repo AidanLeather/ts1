@@ -678,6 +678,44 @@ body {
   font-size: 12px;
 }
 
+.contextual-nudge-banner {
+  margin: 0 0 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  background: #E8F0EC;
+  color: #4b5a51;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.contextual-nudge-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.contextual-nudge-try {
+  border: none;
+  background: transparent;
+  color: #4E7A65;
+  font: 600 12px var(--font);
+  cursor: pointer;
+  padding: 0;
+}
+
+.contextual-nudge-dismiss {
+  border: none;
+  background: transparent;
+  color: #6a7b72;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
 .pin-tip-dismiss {
   border: none;
   background: transparent;
@@ -1774,6 +1812,72 @@ body {
 .setting-action-btn:hover {
   background: var(--bg-hover);
   color: var(--text);
+}
+
+.setting-action-row {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.setting-inline-message {
+  font-size: 12px;
+  padding: 0 14px 12px;
+}
+
+.setting-inline-message-error {
+  color: #B24141;
+}
+
+.setting-inline-confirm {
+  border-top: 1px solid var(--border-light);
+  margin-top: 2px;
+  padding: 10px 14px 12px;
+}
+
+.setting-inline-confirm p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.setting-inline-confirm-actions {
+  margin-top: 10px;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.setting-action-btn-confirm {
+  border-color: #4E7A65;
+  color: #fff;
+  background: #4E7A65;
+}
+
+.setting-action-btn-confirm:hover {
+  background: #3f6554;
+  color: #fff;
+}
+
+.collection-inline-nudge {
+  margin: 8px 0 2px;
+  padding: 8px 10px;
+  border-left: 2px solid #4E7A65;
+  color: #6d6d6d;
+  font-size: 12px;
+  background: #f9fbfa;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.collection-inline-nudge-dismiss {
+  border: none;
+  background: transparent;
+  color: #8a8a8a;
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
 }
 
 /* Toggle */
