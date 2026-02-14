@@ -52,7 +52,7 @@
     <!-- Main -->
     <main class="main">
       <header class="main-header">
-        <div class="search-bar">
+        <div id="search-bar" class="search-bar">
           <svg class="search-icon" width="16" height="16" viewBox="0 0 15 15" fill="none">
             <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.3"/>
             <line x1="10" y1="10" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
@@ -124,19 +124,32 @@
 
       <!-- Empty state -->
       <div id="empty-state" class="empty-state hidden">
-        <div class="empty-icon">
-          <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
-            <rect x="5" y="9" width="30" height="22" rx="3" stroke="currentColor" stroke-width="1.5" fill="none"/>
-            <path d="M5 15H35" stroke="currentColor" stroke-width="1.5"/>
-            <circle cx="10" cy="12" r="1" fill="currentColor"/>
-            <circle cx="14" cy="12" r="1" fill="currentColor"/>
-            <circle cx="18" cy="12" r="1" fill="currentColor"/>
-          </svg>
+        <p class="empty-title" id="empty-title">Save some tabs whenever you're ready.</p>
+      </div>
+
+      <div id="onboarding-layer" class="onboarding-layer hidden" aria-live="polite">
+        <div id="onboarding-dim" class="onboarding-dim"></div>
+        <div id="welcome-screen" class="welcome-screen hidden">
+          <h2>Welcome to WhyTab</h2>
+          <p>A calm space for your saved tabs.</p>
+          <p>WhyTab helps you save, organise, and rediscover the things you find online. Here's a quick tour.</p>
+          <button id="onboarding-start-btn" class="onboarding-primary-btn" type="button">Show me around</button>
+          <button id="onboarding-skip-btn" class="onboarding-link-btn" type="button">Skip</button>
         </div>
-        <p class="empty-title" id="empty-title">Save your first session</p>
-        <p class="empty-desc" id="empty-desc">WhyTab turns your open tabs into saved sessions you can revisit anytime.</p>
-        <p class="empty-sub" id="empty-sub">Use the button below or click "Save open tabs" in the sidebar.</p>
-        <button class="empty-cta-btn" id="empty-cta-btn">Save your first session</button>
+        <div id="tour-card" class="tour-card hidden">
+          <h3 id="tour-title"></h3>
+          <p id="tour-description"></p>
+          <div class="tour-actions">
+            <button id="tour-next-btn" class="onboarding-primary-btn" type="button">Next</button>
+            <button id="tour-skip-btn" class="onboarding-link-btn" type="button">Skip tour</button>
+          </div>
+          <div id="tour-step-indicator" class="tour-step-indicator"></div>
+        </div>
+        <div id="tour-final" class="tour-final hidden">
+          <h3>You're all set</h3>
+          <p>Save some tabs. We'll keep them safe.</p>
+          <button id="tour-finish-btn" class="onboarding-primary-btn" type="button">Get started</button>
+        </div>
       </div>
     </main>
   </div>
