@@ -1119,10 +1119,13 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
   const isSearchResultsView = Boolean(options.searchQuery?.trim());
   const matchedTabIds = new Set(options.matchedTabIds || []);
   const showAllSearchTabs = isSearchResultsView && Boolean(options.showAllTabs);
+  const shouldStartCollapsedInSearch = isSearchResultsView && matchedTabIds.size === 0 && !showAllSearchTabs;
   const visibleTabs = isSearchResultsView
-    ? ((showAllSearchTabs || matchedTabIds.size === 0)
+    ? (showAllSearchTabs
       ? (col.tabs || [])
-      : (col.tabs || []).filter((tab) => matchedTabIds.has(tab.id)))
+      : (matchedTabIds.size === 0
+        ? []
+        : (col.tabs || []).filter((tab) => matchedTabIds.has(tab.id))))
     : (readOnly ? (col.tabs || []) : unresolvedActiveTabs);
   const totalTabCount = options.totalCount ?? (col.tabs || []).length;
   const matchedCount = options.matchedCount ?? matchedTabIds.size;
@@ -1227,6 +1230,9 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
   if (collapsible) {
     const accordionState = getAccordionState();
     if (!isSearchResultsView && accordionState[col.id] && !isFeatured) {
+      div.classList.add('collapsed');
+    }
+    if (shouldStartCollapsedInSearch) {
       div.classList.add('collapsed');
     }
 
@@ -2815,7 +2821,7 @@ function highlightText(value, query) {
   if (!trimmedQuery) return escHtml(text);
 
   const regex = new RegExp(`(${escRegex(trimmedQuery)})`, 'gi');
-  return escHtml(text).replace(regex, '<strong class="search-highlight">$1</strong>');
+  return escHtml(text).replace(regex, '<span class="search-highlight">$1</span>');
 }
 
 function escHtml(str) {

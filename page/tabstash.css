@@ -2282,7 +2282,11 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 }
 
 .search-highlight {
-  font-weight: 600;
+  background-color: #E8F0EC;
+  color: inherit;
+  font-weight: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
 }
 
 .toast {
