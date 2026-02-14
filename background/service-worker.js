@@ -22,8 +22,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Rebuild URL index on install/update (ensures consistency)
   await WhyTabStorage.rebuildUrlIndex();
 
-  // Ensure an "Unsorted" collection exists
-  await WhyTabStorage.ensureUnsorted();
 
   // On first install, create suggested pinned collections
   if (details.reason === 'install') {
@@ -35,8 +33,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
 async function createSuggestedTemplates() {
   const collections = await WhyTabStorage.getCollections();
-  const realCollections = collections.filter((c) => c.name !== 'Unsorted');
-  if (realCollections.length > 0) return;
+  if (collections.length > 0) return;
 
   const templates = [
     { name: 'Morning routine', isPinned: true },

@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       showItemUrls: showItemUrls.checked,
       useContextualAutoTitles: useContextualAutoTitles.checked,
     });
-    showToast('Saved');
+    showToast('Named');
   }
 
   // Export
