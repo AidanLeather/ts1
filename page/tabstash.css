@@ -810,9 +810,10 @@ body {
   padding: 9px 16px 9px 16px;
   cursor: pointer;
   user-select: none;
-  gap: 4px;
+  gap: 8px;
   border-radius: var(--radius-md);
   transition: background-color 150ms ease-out;
+  width: 100%;
 }
 .collection-header:hover {
   background: #f7f7f7;
@@ -847,9 +848,8 @@ body {
 
 .collection-name {
   font-size: 14px;
-  flex: 0 1 auto;
+  flex: 1 1 120px;
   min-width: 0;
-  max-width: min(50%, 400px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -876,20 +876,25 @@ body {
   opacity: 0.5;
 }
 
-.collection-main {
-  flex: 0 1 auto;
+.collection-main,
+.collection-title-group {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 8px;
+  max-width: 60%;
+}
+
+.collection-title-group--pinned {
+  max-width: 90%;
 }
 
 .collection-left {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: baseline;
 }
 
 .collection-right {
@@ -915,18 +920,14 @@ body {
 
 
 .collection-activity {
-  margin-left: 0;
   font-size: 12px;
   font-weight: 300;
   color: #a0a0a0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
-  flex: 0 1 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .collection-untouched {
