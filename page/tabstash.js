@@ -312,17 +312,18 @@ function bindEvents() {
 
 function getSavedCollections() {
   return state.collections
-    .filter((c) => c.isUserNamed && !c.isPinned && !c.archived)
+    .filter((c) => c.isUserNamed && !c.archived)
     .sort((a, b) => (b.lastInteractedAt || b.createdAt || 0) - (a.lastInteractedAt || a.createdAt || 0));
 }
 
 function getCollectionsForDisplay(collections, sortMode) {
-  const pinned = collections.filter((c) => c.isPinned);
+  const visibleCollections = collections.filter((c) => c.name !== 'Unsorted');
+  const pinned = visibleCollections.filter((c) => c.isPinned);
   const unpinnedActive = WhyTabStorage.sortCollections(
-    collections.filter((c) => !c.isPinned && !c.archived),
+    visibleCollections.filter((c) => !c.isPinned && !c.archived),
     sortMode,
   );
-  const archived = collections.filter((c) => c.archived);
+  const archived = visibleCollections.filter((c) => c.archived);
   return [...pinned, ...unpinnedActive, ...archived];
 }
 
@@ -680,8 +681,8 @@ function renderSavedView(content, empty) {
   content.innerHTML = '';
   if (!savedCollections.length) {
     setEmptyState({
-      title: 'No saved collections',
-      sub: 'Rename any collection to save it here.',
+      title: 'No named collections',
+      sub: 'Rename any collection to include it here.',
       showDescription: false,
       showCta: false,
     });
@@ -690,7 +691,7 @@ function renderSavedView(content, empty) {
   }
 
   empty.classList.add('hidden');
-  content.appendChild(buildCollectionSectionLabel('Saved'));
+  content.appendChild(buildCollectionSectionLabel('Named'));
   for (const col of savedCollections) {
     content.appendChild(buildCollectionBlock(col, false, true));
   }
@@ -1484,7 +1485,7 @@ function updateSidebar() {
     const savedBtn = document.createElement('button');
     savedBtn.className = 'nav-item nav-item-muted nav-item-archived';
     savedBtn.dataset.view = 'saved';
-    savedBtn.textContent = 'Saved';
+    savedBtn.textContent = 'Named';
     savedBtn.classList.toggle('active', state.currentView === 'saved');
     savedBtn.addEventListener('click', () => {
       state.currentView = 'saved';
@@ -1495,9 +1496,8 @@ function updateSidebar() {
     systemList.appendChild(savedBtn);
   }
 
-  const isUnsorted = (col) => col.name === 'Unsorted';
-  const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c) && !c.archived);
-  const unpinned = state.collections.filter((c) => !c.isPinned && !isUnsorted(c) && !c.archived);
+  const pinned = state.collections.filter((c) => c.isPinned && !c.archived);
+  const unpinned = state.collections.filter((c) => !c.isPinned && !c.archived);
   const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
     label.className = 'sidebar-section-label';
@@ -1672,7 +1672,7 @@ function updateViewHeader() {
   } else if (state.currentView === 'saved') {
     viewHeader.classList.remove('hidden');
     const savedCount = getSavedCollections().length;
-    title.textContent = 'Saved';
+    title.textContent = 'Named';
     count.textContent = savedCount ? `(${savedCount})` : '';
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else if (state.currentView === 'archived') {

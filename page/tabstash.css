@@ -254,10 +254,11 @@ body {
   flex-shrink: 0;
   padding-right: 0;
   opacity: 0.5;
-  transition: none;
+  transition: margin-right 100ms ease, transform 100ms ease;
 }
 .sidebar-col-item:hover .sidebar-col-count {
-  opacity: 0;
+  margin-right: 4px;
+  transform: translateX(-2px);
 }
 .sidebar-col-count--pinned {
   background: none;
@@ -278,24 +279,24 @@ body {
 
 /* ── Sidebar hover actions (pin toggle) ──────────────── */
 .sidebar-col-actions {
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: flex-end;
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: width 100ms ease, opacity 100ms ease;
 }
 .sidebar-col-item:hover .sidebar-col-actions {
-  display: flex;
+  width: 28px;
+  opacity: 1;
 }
 
 .sidebar-hover-pin {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  padding: 5px;
   border: none;
   background: none;
   color: var(--text-tertiary);
@@ -328,7 +329,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .nav-item-muted {
