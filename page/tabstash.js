@@ -44,11 +44,6 @@ let state = {
     pendingFirstSaveCollectionId: null,
     pendingNamedNudge: false,
   },
-  onboarding: {
-    hasCompleted: false,
-    mode: 'none',
-    stepIndex: 0,
-  },
   pruneMode: {
     active: false,
     unpinnedOrderIds: [],
@@ -155,7 +150,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   render();
   await maybeShowContextualNudge();
   bindEvents();
-  bindOnboardingEvents();
   bindKeyboard();
   bindStorageListener();
   console.log('[WhyTab] Page loaded, listening for storage changes');
@@ -217,14 +211,12 @@ async function loadNudgeState() {
       NUDGE_STORAGE_KEYS.named,
       NUDGE_STORAGE_KEYS.shortcut,
       NUDGE_STORAGE_KEYS.openCount,
-      NUDGE_STORAGE_KEYS.onboarding,
     ]);
 
     state.nudges.flags.hasSeenFirstSaveNudge = Boolean(stored[NUDGE_STORAGE_KEYS.firstSave]);
     state.nudges.flags.hasSeenPruneNudge = Boolean(stored[NUDGE_STORAGE_KEYS.prune]);
     state.nudges.flags.hasSeenNamedNudge = Boolean(stored[NUDGE_STORAGE_KEYS.named]);
     state.nudges.flags.hasSeenShortcutNudge = Boolean(stored[NUDGE_STORAGE_KEYS.shortcut]);
-    state.onboarding.hasCompleted = Boolean(stored[NUDGE_STORAGE_KEYS.onboarding]);
 
     const priorOpenCount = Number(stored[NUDGE_STORAGE_KEYS.openCount]) || 0;
     state.nudges.openCount = priorOpenCount + 1;
@@ -299,44 +291,11 @@ async function maybeShowContextualNudge() {
     return;
   }
 
-  if (!state.nudges.flags.hasSeenShortcutNudge && state.nudges.openCount >= 10) {
+  if (!state.nudges.flags.hasSeenShortcutNudge && state.nudges.openCount >= 5) {
     await markNudgeSeen('shortcut');
     showToast('Tip: Press ⌘K to open the command palette for quick actions.');
   }
 }
-
-const TOUR_STEPS = [
-  {
-    selector: '#save-tabs-btn',
-    title: 'Save your tabs',
-    description: "Click here or use the toolbar button to save all your open tabs at once. They'll be safe here whenever you need them.",
-    placement: 'right',
-  },
-  {
-    selector: '#search-bar',
-    title: 'Find anything',
-    description: 'Search across all your saved tabs by title, URL, or tag. Press / to jump here instantly.',
-    placement: 'bottom',
-  },
-  {
-    selector: '#pinned-section-anchor',
-    title: 'Pin what matters',
-    description: "Pinned collections stay at the top for easy access. We've created two to get you started — rename or delete them anytime.",
-    placement: 'right',
-  },
-  {
-    selector: '#view-actions',
-    title: 'Quick actions',
-    description: 'Press ⌘K to open the command palette. From there you can save tabs, create collections, start pruning, and more.',
-    placement: 'bottom',
-  },
-  {
-    selector: '#prune-mode-btn',
-    title: 'Tidy up',
-    description: "When things pile up, Prune mode helps you sort through everything — one collection at a time. It's satisfying, we promise.",
-    placement: 'bottom',
-  },
-];
 
 function renderContextualBannerNudge() {
   const banner = $('#contextual-nudge-banner');
@@ -500,6 +459,9 @@ function bindEvents() {
   // Save open tabs (sidebar link)
   $('#save-tabs-btn').addEventListener('click', saveAndCloseTabs);
 
+  // Empty state CTA
+  $('#empty-cta-btn')?.addEventListener('click', saveAllTabs);
+
   // New collection
   $('#new-collection-btn').addEventListener('click', () => {
     handleNewCollection().catch((err) => console.error('[WhyTab] New collection error:', err));
@@ -600,50 +562,6 @@ function bindEvents() {
       closeSearchPanel();
     }
   });
-}
-
-function bindOnboardingEvents() {
-  $('#onboarding-start-btn')?.addEventListener('click', async () => {
-    state.onboarding.mode = 'tour';
-    state.onboarding.stepIndex = 0;
-    await ensureStarterPinnedCollections();
-    render();
-  });
-  $('#onboarding-skip-btn')?.addEventListener('click', completeOnboarding);
-  $('#tour-next-btn')?.addEventListener('click', () => {
-    state.onboarding.stepIndex += 1;
-    render();
-  });
-  $('#tour-skip-btn')?.addEventListener('click', completeOnboarding);
-  $('#tour-finish-btn')?.addEventListener('click', completeOnboarding);
-  $('#onboarding-dim')?.addEventListener('click', () => {
-    if (state.onboarding.mode === 'tour') completeOnboarding();
-  });
-}
-
-function shouldShowOnboardingWelcome() {
-  const hasCollections = state.collections.length > 0;
-  return !state.onboarding.hasCompleted && !hasCollections;
-}
-
-async function ensureStarterPinnedCollections() {
-  const existing = state.collections.map((col) => col.name);
-  const starters = ['Reading list', 'Inspiration'];
-  for (const name of starters) {
-    if (!existing.includes(name)) {
-      await WhyTabStorage.addCollection(name, [], { isPinned: true, isUserNamed: true });
-    }
-  }
-  await loadData();
-}
-
-async function completeOnboarding() {
-  state.onboarding.hasCompleted = true;
-  state.onboarding.mode = 'none';
-  state.onboarding.stepIndex = 0;
-  await ensureStarterPinnedCollections();
-  await chrome.storage.local.set({ [NUDGE_STORAGE_KEYS.onboarding]: true });
-  render();
 }
 
 function getSavedCollections() {
@@ -1149,10 +1067,6 @@ function render() {
   const empty = $('#empty-state');
   const filterBar = $('#filter-bar');
 
-  if (shouldShowOnboardingWelcome() && state.onboarding.mode === 'none') {
-    state.onboarding.mode = 'welcome';
-  }
-
   // Search mode
   if (state.searchQuery.trim()) {
     const results = WhyTabStorage.search(state.collections, state.searchQuery, state.searchFilters);
@@ -1165,19 +1079,27 @@ function render() {
 
     if (count === 0) {
       content.innerHTML = '';
-      setEmptyState({ title: `No tabs found for "${state.searchQuery}".` });
+      setEmptyState({
+        title: 'No results',
+        sub: `Nothing matching "${state.searchQuery}"`,
+      });
       empty.classList.remove('hidden');
     } else {
       empty.classList.add('hidden');
       content.innerHTML = '';
       renderSearchResults(content, results);
     }
-    renderOnboardingLayer();
     return;
   }
 
   filterBar.classList.add('hidden');
-  setEmptyState({ title: "Save some tabs whenever you're ready." });
+  setEmptyState({
+    title: 'Save your first session',
+    description: 'WhyTab turns your open tabs into saved sessions you can revisit anytime.',
+    sub: 'Use the button below or click "Save open tabs" in the sidebar.',
+    showDescription: true,
+    showCta: true,
+  });
 
   if (state.currentView === 'all') {
     renderAllView(content, empty);
@@ -1193,7 +1115,6 @@ function render() {
   requestAnimationFrame(() => {
     handleFeaturedCollectionTransition();
   });
-  renderOnboardingLayer();
 }
 
 function renderAllView(content, empty) {
@@ -1203,6 +1124,9 @@ function renderAllView(content, empty) {
     if (state.pruneMode.active) {
       setEmptyState({
         title: 'All clear',
+        sub: '',
+        showDescription: false,
+        showCta: false,
       });
     }
     empty.classList.remove('hidden');
@@ -1234,7 +1158,10 @@ function renderSavedView(content, empty) {
   content.innerHTML = '';
   if (!savedCollections.length) {
     setEmptyState({
-      title: 'Rename any collection to see it here.',
+      title: 'No named collections',
+      sub: 'Rename any collection to include it here.',
+      showDescription: false,
+      showCta: false,
     });
     empty.classList.remove('hidden');
     return;
@@ -1251,7 +1178,7 @@ function renderArchivedView(content, empty) {
   const archivedCollections = state.collections.filter((c) => c.archived);
   content.innerHTML = '';
   if (!archivedCollections.length) {
-    setEmptyState({ title: 'Nothing archived yet.' });
+    setEmptyState({ title: 'No archived collections', sub: '' });
     empty.classList.remove('hidden');
     return;
   }
@@ -1289,7 +1216,7 @@ function renderCollectionView(content, empty, colId) {
   const col = state.collections.find((c) => c.id === colId);
   if (!col || col.archived) {
     content.innerHTML = '';
-    setEmptyState({ title: 'Collection not found.' });
+    setEmptyState({ title: 'Collection not found', sub: '' });
     empty.classList.remove('hidden');
     return;
   }
@@ -1300,7 +1227,7 @@ function renderCollectionView(content, empty, colId) {
     const wrapper = document.createElement('div');
     wrapper.appendChild(buildAddTabForm(col.id));
     content.appendChild(wrapper);
-    setEmptyState({ title: 'Add tabs here from any page using the toolbar button.' });
+    setEmptyState({ title: 'Empty collection', sub: 'Add tabs manually or move tabs here.' });
     empty.classList.remove('hidden');
     return;
   }
@@ -1355,15 +1282,26 @@ function renderSearchResults(content, results) {
   }
 }
 
-function setEmptyState({ title }) {
+function setEmptyState({ title, sub, description = '', showDescription = false, showCta = false }) {
   $('#empty-title').textContent = title;
+  $('#empty-sub').textContent = sub;
+
+  const descEl = $('#empty-desc');
+  if (descEl) {
+    descEl.textContent = description;
+    descEl.classList.toggle('hidden', !showDescription);
+  }
+
+  const ctaBtn = $('#empty-cta-btn');
+  if (ctaBtn) {
+    ctaBtn.classList.toggle('hidden', !showCta);
+  }
 }
 
 function buildCollectionSectionLabel(text, withBoundary = false) {
   const div = document.createElement('div');
   div.className = `collection-section${withBoundary ? ' section-boundary' : ''}`;
   div.textContent = text;
-  if (text === 'Pinned') div.id = 'pinned-section-anchor';
   return div;
 }
 
@@ -1655,8 +1593,6 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
       });
     } else if (archivedTabs.length > 0) {
       emptyArchived.textContent = 'All tabs archived';
-    } else if (col.isPinned) {
-      emptyArchived.textContent = 'Add tabs here from any page using the toolbar button.';
     }
     if (emptyArchived.textContent || emptyArchived.children.length) {
       body.appendChild(emptyArchived);
@@ -2876,72 +2812,6 @@ function closeSearchPanel() {
 
 function setSearchFocusState(isFocused) {
   $('.app')?.classList.toggle('search-focused', isFocused);
-}
-
-function renderOnboardingLayer() {
-  const layer = $('#onboarding-layer');
-  const welcome = $('#welcome-screen');
-  const card = $('#tour-card');
-  const finalCard = $('#tour-final');
-  if (!layer) return;
-
-  $$('.onboarding-highlight').forEach((el) => el.classList.remove('onboarding-highlight'));
-
-  const active = state.onboarding.mode === 'welcome' || state.onboarding.mode === 'tour';
-  layer.classList.toggle('hidden', !active);
-  layer.classList.toggle('is-tour', state.onboarding.mode === 'tour');
-  welcome?.classList.toggle('hidden', state.onboarding.mode !== 'welcome');
-  if (!active) {
-    card?.classList.add('hidden');
-    finalCard?.classList.add('hidden');
-    return;
-  }
-
-  if (state.onboarding.mode !== 'tour') return;
-
-  const step = TOUR_STEPS[state.onboarding.stepIndex];
-  if (!step) {
-    card?.classList.add('hidden');
-    finalCard?.classList.remove('hidden');
-    return;
-  }
-
-  finalCard?.classList.add('hidden');
-  card?.classList.remove('hidden');
-  $('#tour-title').textContent = step.title;
-  $('#tour-description').textContent = step.description;
-  $('#tour-step-indicator').textContent = `${state.onboarding.stepIndex + 1} of ${TOUR_STEPS.length}`;
-  $('#tour-next-btn').textContent = state.onboarding.stepIndex === TOUR_STEPS.length - 1 ? 'Finish' : 'Next';
-
-  const target = document.querySelector(step.selector);
-  if (!target || !card) return;
-  target.classList.add('onboarding-highlight');
-
-  const targetRect = target.getBoundingClientRect();
-  const cardRect = card.getBoundingClientRect();
-  const gap = 14;
-  const compact = window.innerWidth < 980;
-  const preferred = compact && step.placement === 'right' ? 'bottom' : step.placement;
-  let left = targetRect.left;
-  let top = targetRect.bottom + gap;
-
-  if (preferred === 'right') {
-    left = targetRect.right + gap;
-    top = targetRect.top;
-  }
-  if (preferred === 'bottom') {
-    left = targetRect.left;
-    top = targetRect.bottom + gap;
-  }
-
-  if (left + cardRect.width > window.innerWidth - 16) left = window.innerWidth - cardRect.width - 16;
-  if (left < 16) left = 16;
-  if (top + cardRect.height > window.innerHeight - 16) {
-    top = Math.max(16, targetRect.top - cardRect.height - gap);
-  }
-
-  card.style.left = `${left}px`;
-  card.style.top = `${top}px`;
 }
 
 function updateSearchPanel() {
