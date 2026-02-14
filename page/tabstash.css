@@ -856,7 +856,7 @@ body {
 
 .collection-name {
   font-size: 14px;
-  flex: 1 1 120px;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -879,7 +879,7 @@ body {
   align-items: center;
   min-height: 18px;
   flex-shrink: 0;
-  margin-left: 4px;
+  margin-left: 6px;
   padding-left: 0;
   opacity: 0.5;
 }
@@ -890,7 +890,8 @@ body {
   min-width: 0;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 0;
   max-width: 60%;
 }
 
@@ -936,6 +937,7 @@ body {
   gap: 6px;
   white-space: nowrap;
   flex-shrink: 0;
+  margin-left: 12px;
 }
 
 .collection-untouched {
@@ -1925,7 +1927,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
   font-size: var(--text-xs);
   font-weight: var(--font-normal);
   color: var(--text-secondary);
-  margin-left: 4px;
+  margin-left: 6px;
 }
 .collapse-icon {
   width: 14px;
