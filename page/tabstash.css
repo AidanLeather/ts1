@@ -254,11 +254,10 @@ body {
   flex-shrink: 0;
   padding-right: 0;
   opacity: 0.5;
-  transition: margin-right 100ms ease, transform 100ms ease;
+  transition: transform 100ms ease-out;
 }
 .sidebar-col-item:hover .sidebar-col-count {
-  margin-right: 4px;
-  transform: translateX(-2px);
+  transform: translateX(-5px);
 }
 .sidebar-col-count--pinned {
   background: none;
@@ -279,24 +278,28 @@ body {
 
 /* ── Sidebar hover actions (pin toggle) ──────────────── */
 .sidebar-col-actions {
-  display: flex;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  width: 0;
-  overflow: hidden;
+  width: 16px;
   opacity: 0;
-  transition: width 100ms ease, opacity 100ms ease;
+  pointer-events: none;
+  transition: opacity 100ms ease-out;
 }
 .sidebar-col-item:hover .sidebar-col-actions {
-  width: 28px;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .sidebar-hover-pin {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 5px;
+  padding: 2px;
   border: none;
   background: none;
   color: var(--text-tertiary);
@@ -304,6 +307,10 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   transition: color var(--transition), background var(--transition);
+}
+.sidebar-hover-pin svg {
+  width: 12px;
+  height: 12px;
 }
 .sidebar-hover-pin:hover {
   color: var(--text);
@@ -322,14 +329,23 @@ body {
   border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 0;
 }
 
 .sidebar-system {
   display: flex;
   flex-direction: column;
   gap: 0;
+  margin-top: 14px;
+  margin-bottom: 6px;
+}
+
+#sidebar-system .nav-item {
   margin-bottom: 0;
+}
+
+#nav-archived {
+  margin-top: 0;
 }
 
 .nav-item-muted {
