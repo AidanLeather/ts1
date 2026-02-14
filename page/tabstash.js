@@ -967,7 +967,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     : (col.name || '');
 
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
-  const timestampHtml = collapsible && preciseTimestamp
+  const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
     : '';
 
@@ -1020,15 +1020,17 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${menuActions.join('')}</div></details>`;
 
   const archivedNameLabel = readOnly && col.archived ? '<span class="archived-search-label">(archived)</span>' : '';
-  const pruneMetaHtml = state.pruneMode.active && !readOnly
+  const pruneMetaHtml = state.pruneMode.active && !readOnly && !col.isPinned
     ? `<span class="collection-activity" title="${escAttr(formatRelativeActivity(col.lastInteractedAt))}">${escHtml(formatRelativeActivity(col.lastInteractedAt))}${shouldShowUntouchedHint(col) ? '<span class="collection-untouched">Untouched</span>' : ''}</span>`
     : '';
 
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
-    <div class="collection-main">
-      <span class="${nameClass}">${escHtml(collectionName)}</span>${archivedNameLabel}
-      <span class="collection-tab-count">${countText}</span>
+    <div class="collection-left">
+      <div class="collection-main">
+        <span class="${nameClass}">${escHtml(collectionName)}</span>${archivedNameLabel}
+        <span class="collection-tab-count">${countText}</span>
+      </div>
       ${pruneMetaHtml}
     </div>
     <div class="collection-right">
