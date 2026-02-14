@@ -90,6 +90,14 @@
         </div>
       </header>
 
+      <div id="contextual-nudge-banner" class="contextual-nudge-banner hidden" role="status" aria-live="polite">
+        <span id="contextual-nudge-text"></span>
+        <div class="contextual-nudge-actions">
+          <button id="contextual-nudge-try" class="contextual-nudge-try hidden" type="button">Try it</button>
+          <button id="contextual-nudge-dismiss" class="contextual-nudge-dismiss" type="button" aria-label="Dismiss nudge">&times;</button>
+        </div>
+      </div>
+
       <div id="pin-tip-banner" class="pin-tip-banner hidden" role="status" aria-live="polite">
         <span>Tip: Click the puzzle piece icon in your toolbar and pin WhyTab for one-click access.</span>
         <button id="pin-tip-dismiss" class="pin-tip-dismiss" type="button" aria-label="Dismiss pin tip">&times;</button>
@@ -257,10 +265,22 @@
         <div class="setting-group">
           <div class="setting-row">
             <div class="setting-info">
-              <div class="setting-label">Export data</div>
+              <div class="setting-label">Data</div>
             </div>
-            <button id="setting-export-btn" class="setting-action-btn">Export JSON</button>
+            <div class="setting-action-row">
+              <button id="setting-import-btn" class="setting-action-btn">Import JSON</button>
+              <button id="setting-export-btn" class="setting-action-btn">Export JSON</button>
+            </div>
           </div>
+          <div id="setting-import-error" class="setting-inline-message setting-inline-message-error hidden">Invalid file format. Please select a WhyTab export file.</div>
+          <div id="setting-import-confirm" class="setting-inline-confirm hidden">
+            <p>This will replace all your current data with the imported data. This cannot be undone.</p>
+            <div class="setting-inline-confirm-actions">
+              <button id="setting-import-cancel-btn" class="setting-action-btn" type="button">Cancel</button>
+              <button id="setting-import-confirm-btn" class="setting-action-btn setting-action-btn-confirm" type="button">Import</button>
+            </div>
+          </div>
+          <input id="setting-import-file" type="file" accept=".json" class="hidden" aria-hidden="true">
         </div>
       </div>
     </div>
