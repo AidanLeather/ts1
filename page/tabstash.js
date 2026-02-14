@@ -25,6 +25,7 @@ let state = {
     last7Days: false,
     domain: '',
   },
+  searchExpandedCollections: {},
   pendingSidebarCollectionId: null,
   archivedExpanded: {},
   hasAutoArchiveCheckRun: false,
@@ -146,6 +147,7 @@ function bindEvents() {
     btn.addEventListener('click', () => {
       state.currentView = btn.dataset.view;
       state.searchQuery = '';
+      state.searchExpandedCollections = {};
       $('#search').value = '';
       render();
       if (btn.dataset.view === 'all') {
@@ -157,6 +159,7 @@ function bindEvents() {
   // Search
   $('#search').addEventListener('input', (e) => {
     state.searchQuery = e.target.value;
+    state.searchExpandedCollections = {};
     if (!state.searchQuery.trim()) {
       setSearchFocusState(false);
     } else if (document.activeElement === $('#search')) {
@@ -166,6 +169,7 @@ function bindEvents() {
   });
   $('#search-clear-btn')?.addEventListener('click', () => {
     state.searchQuery = '';
+    state.searchExpandedCollections = {};
     $('#search').value = '';
     render();
     $('#search').focus();
@@ -832,7 +836,10 @@ function render() {
   // Search mode
   if (state.searchQuery.trim()) {
     const results = WhyTabStorage.search(state.collections, state.searchQuery, state.searchFilters);
-    const count = results.length;
+    const count = results.reduce((sum, result) => {
+      if (result.matchedTabs.length > 0) return sum + result.matchedTabs.length;
+      return sum + 1;
+    }, 0);
     $('#filter-text').textContent = `${count} result${count !== 1 ? 's' : ''} for "${state.searchQuery}"`;
     filterBar.classList.remove('hidden');
 
@@ -997,19 +1004,47 @@ function renderCollectionView(content, empty, colId) {
 }
 
 function renderSearchResults(content, results) {
-  const groups = {};
-  for (const r of results) {
-    if (!groups[r.collectionId]) {
-      const source = state.collections.find((col) => col.id === r.collectionId);
-      groups[r.collectionId] = source
-        ? { ...source, tabs: [] }
-        : { name: r.collectionName, id: r.collectionId, tabs: [], archived: Boolean(r.collectionArchived), isPinned: false, isUserNamed: true };
-    }
-    groups[r.collectionId].tabs.push(r);
-  }
-  for (const group of Object.values(groups)) {
+  const groupedCollections = results
+    .map((result) => {
+      const source = state.collections.find((col) => col.id === result.collectionId);
+      return {
+        ...(source || {
+          id: result.collectionId,
+          name: result.collectionName,
+          archived: Boolean(result.collectionArchived),
+          isPinned: Boolean(result.isPinned),
+          isUserNamed: Boolean(result.isUserNamed),
+          createdAt: result.createdAt,
+          tabs: [],
+        }),
+        searchMatchedTabIds: result.matchedTabs.map((tab) => tab.id),
+        searchMatchedCount: result.matchedTabs.length,
+        searchCollectionNameMatch: Boolean(result.collectionNameMatch),
+      };
+    })
+    .sort((a, b) => {
+      const groupRank = (col) => {
+        if (col.archived) return 3;
+        if (col.isPinned) return 0;
+        if (col.isUserNamed) return 1;
+        return 2;
+      };
+      const rankDiff = groupRank(a) - groupRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      const nameDiff = Number(b.searchCollectionNameMatch) - Number(a.searchCollectionNameMatch);
+      if (nameDiff !== 0) return nameDiff;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+
+  for (const group of groupedCollections) {
     const isReadOnly = !state.pruneMode.active;
-    content.appendChild(buildCollectionBlock(group, isReadOnly, true));
+    content.appendChild(buildCollectionBlock(group, isReadOnly, true, {
+      searchQuery: state.searchQuery,
+      matchedTabIds: group.searchMatchedTabIds,
+      showAllTabs: Boolean(state.searchExpandedCollections[group.id]),
+      matchedCount: group.searchMatchedCount,
+      totalCount: (group.tabs || []).length,
+    }));
   }
 }
 
@@ -1070,7 +1105,7 @@ async function setAllAccordionState(collapsed) {
 }
 
 // ── Collection block ───────────────────────────────────
-function buildCollectionBlock(col, readOnly, collapsible) {
+function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
   const div = document.createElement('div');
   div.className = `collection-block${state.pruneMode.active ? ' prune-mode' : ''}`;
   div.dataset.id = col.id;
@@ -1081,8 +1116,17 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const unresolvedActiveTabs = state.pruneMode.active ? getUnresolvedActiveTabs(col) : activeTabs;
   const archivedTabs = (col.tabs || []).filter((tab) => tab.archived);
   const showArchived = Boolean(state.archivedExpanded[col.id]);
-  const visibleTabs = readOnly ? (col.tabs || []) : unresolvedActiveTabs;
-  const countText = `(${visibleTabs.length})`;
+  const isSearchResultsView = Boolean(options.searchQuery?.trim());
+  const matchedTabIds = new Set(options.matchedTabIds || []);
+  const showAllSearchTabs = isSearchResultsView && Boolean(options.showAllTabs);
+  const visibleTabs = isSearchResultsView
+    ? ((showAllSearchTabs || matchedTabIds.size === 0)
+      ? (col.tabs || [])
+      : (col.tabs || []).filter((tab) => matchedTabIds.has(tab.id)))
+    : (readOnly ? (col.tabs || []) : unresolvedActiveTabs);
+  const totalTabCount = options.totalCount ?? (col.tabs || []).length;
+  const matchedCount = options.matchedCount ?? matchedTabIds.size;
+  const countText = `(${totalTabCount})`;
   const collectionName = state.pruneMode.active && (col.name || '').length > 50
     ? `${(col.name || '').slice(0, 50).trimEnd()}…`
     : (col.name || '');
@@ -1153,7 +1197,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ? ''
     : `<details class="inline-menu col-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${menuActions.join('')}</div></details>`;
 
-  const archivedNameLabel = readOnly && col.archived ? '<span class="archived-search-label">(archived)</span>' : '';
+  const archivedLabel = readOnly && col.archived ? '<span class="archived-status-badge">archived</span>' : '';
   const pruneMetaHtml = state.pruneMode.active && !readOnly && !col.isPinned
     ? `<span class="collection-activity" title="${escAttr(formatRelativeActivity(col.lastInteractedAt))}">${escHtml(formatRelativeActivity(col.lastInteractedAt))}${shouldShowUntouchedHint(col) ? '<span class="collection-untouched">Untouched</span>' : ''}</span>`
     : '';
@@ -1163,8 +1207,10 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
     <div class="collection-left">
       <div class="${titleGroupClass}">
-        <span class="${nameClass}">${escHtml(collectionName)}</span>${archivedNameLabel}
+        <span class="${nameClass}">${isSearchResultsView ? highlightText(collectionName, options.searchQuery) : escHtml(collectionName)}</span>
         <span class="collection-tab-count">${countText}</span>
+        ${isSearchResultsView ? `<span class="collection-match-note">${matchedCount} of ${totalTabCount} match</span>` : ''}
+        ${archivedLabel}
         ${pruneMetaHtml}
       </div>
     </div>
@@ -1180,12 +1226,17 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   if (collapsible) {
     const accordionState = getAccordionState();
-    if (accordionState[col.id] && !isFeatured) {
+    if (!isSearchResultsView && accordionState[col.id] && !isFeatured) {
       div.classList.add('collapsed');
     }
 
     header.addEventListener('click', async (e) => {
       if (e.target.closest('.col-actions') || e.target.closest('.inline-menu')) return;
+      if (isSearchResultsView) {
+        state.searchExpandedCollections[col.id] = !state.searchExpandedCollections[col.id];
+        render();
+        return;
+      }
       div.classList.toggle('collapsed');
       await setAccordionState({
         ...getAccordionState(),
@@ -1290,7 +1341,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   }
 
   for (const tab of visibleTabs) {
-    body.appendChild(buildTabRow(tab, col.id, { inSearch: readOnly }));
+    body.appendChild(buildTabRow(tab, col.id, { inSearch: isSearchResultsView || readOnly, searchQuery: options.searchQuery }));
   }
 
   if (!readOnly && archivedTabs.length > 0 && showArchived) {
@@ -1450,22 +1501,27 @@ function buildAddTabForm(collectionId) {
 
 // ── Tab row ────────────────────────────────────────────
 function buildTabRow(tab, collectionId, options = {}) {
-  const { archived = Boolean(tab.archived), inSearch = false } = options;
+  const { archived = Boolean(tab.archived), inSearch = false, searchQuery = "" } = options;
   const row = document.createElement('div');
   row.className = `tab-row${archived || tab.collectionArchived ? ' tab-row-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}`;
   row.dataset.id = tab.id;
   row.draggable = !inSearch;
 
   const tags = tab.tags || [];
+  const hasSearchQuery = Boolean(searchQuery.trim());
 
   const icon = faviconUrl(tab.url);
   const favicon = icon
     ? `<img class="tab-favicon" src="${escAttr(icon)}" alt="" loading="lazy">`
     : '<div class="tab-favicon-placeholder"></div>';
 
-  const tagHtml = tags.map((t) =>
-    `<span class="tag-chip" data-tag="${escAttr(t)}">${escHtml(t)}<button class="tag-remove" title="Remove tag">×</button></span>`
-  ).join('');
+  const tagHtml = tags.map((t) => {
+    if (inSearch) {
+      const tagMatchesQuery = hasSearchQuery && t.toLowerCase().includes(searchQuery.toLowerCase());
+      return `<span class="tag-chip tag-chip-search${tagMatchesQuery ? ' tag-chip-search-match' : ''}" data-tag="${escAttr(t)}">#${highlightText(t, searchQuery)}</span>`;
+    }
+    return `<span class="tag-chip" data-tag="${escAttr(t)}">${escHtml(t)}<button class="tag-remove" title="Remove tag">×</button></span>`;
+  }).join('');
 
   const showDate = shouldShowTimestamp(tab.savedAt);
   const tabActivityText = state.pruneMode.active ? formatRelativeActivity(tab.lastAccessedAt ?? null) : '';
@@ -1473,7 +1529,6 @@ function buildTabRow(tab, collectionId, options = {}) {
   const archiveIcon = archived
     ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 9V5.5M6.5 5.5L4.8 7.2M6.5 5.5L8.2 7.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
     : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 5V8.5M6.5 8.5L4.8 6.8M6.5 8.5L8.2 6.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  const archivedLabel = (archived || tab.collectionArchived) ? '<span class="archived-search-label">(archived)</span>' : '';
   const checkIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.8L5.2 9.5L10.5 3.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const deleteIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5H10.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M4 3.5V2.5H9V3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 3.5L4 10.5H9L9.5 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const openBtnHtml = '<button class="icon-btn open-btn" title="Open"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
@@ -1496,14 +1551,11 @@ function buildTabRow(tab, collectionId, options = {}) {
     ${favicon}
     <div class="tab-info">
       <div class="tab-title-row">
-        <span class="tab-title" data-url="${escAttr(tab.url)}">${escHtml(tab.title)}</span>
-        ${inSearch ? archivedLabel : ''}
-        <div class="tag-container">
-          ${tagHtml}
-          <button class="tag-add-btn" title="Add tag">+</button>
-        </div>
+        <span class="tab-title" data-url="${escAttr(tab.url)}">${inSearch ? highlightText(tab.title, searchQuery) : escHtml(tab.title)}</span>
+        ${(inSearch && tags.length) ? `<div class="tag-container tag-container-search">${tagHtml}</div>` : ''}
+        ${(!inSearch) ? `<div class="tag-container">${tagHtml}<button class="tag-add-btn" title="Add tag">+</button></div>` : ''}
       </div>
-      ${state.settings.showItemUrls ? `<div class="tab-url">${escHtml(tab.url)}</div>` : ''}
+      ${state.settings.showItemUrls ? `<div class="tab-url">${inSearch ? highlightText(tab.url, searchQuery) : escHtml(tab.url)}</div>` : ''}
     </div>
     <div class="tab-meta">
       ${state.pruneMode.active ? `<span class="tab-activity">${escHtml(tabActivityText)}</span>` : ''}
@@ -1568,7 +1620,6 @@ function buildTabRow(tab, collectionId, options = {}) {
     row.querySelector('.edit-btn')?.remove();
     row.querySelector('.archive-tab-btn')?.remove();
     row.querySelector('.tab-menu')?.remove();
-    row.querySelector('.tag-container')?.classList.add('hidden');
     return row;
   }
 
@@ -1783,6 +1834,7 @@ function updateSidebar() {
     savedBtn.addEventListener('click', () => {
       state.currentView = 'saved';
       state.searchQuery = '';
+      state.searchExpandedCollections = {};
       $('#search').value = '';
       render();
     });
@@ -2751,6 +2803,19 @@ function shortUrl(url) {
     const keep = Math.max(10, Math.floor((maxLen - 1) / 2));
     return `${display.slice(0, keep)}\u2026${display.slice(-keep)}`;
   } catch { return url; }
+}
+
+function escRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightText(value, query) {
+  const text = String(value || '');
+  const trimmedQuery = String(query || '').trim();
+  if (!trimmedQuery) return escHtml(text);
+
+  const regex = new RegExp(`(${escRegex(trimmedQuery)})`, 'gi');
+  return escHtml(text).replace(regex, '<strong class="search-highlight">$1</strong>');
 }
 
 function escHtml(str) {
