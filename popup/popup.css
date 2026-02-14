@@ -34,13 +34,19 @@ body {
 .popup-title {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
   margin-bottom: 4px;
 }
-
-.wordmark {
-  display: block;
-  width: 106px;
-  height: auto;
+.popup-title::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4E7A65;
+  flex-shrink: 0;
 }
 
 .popup-btn {
