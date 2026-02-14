@@ -66,7 +66,6 @@ const PRUNE_TALLY_HOLD_MS = 300;
 const PRUNE_ENTRY_SCROLL_MS = 720;
 const PRUNE_EXIT_SCROLL_MS = 500;
 const PRUNE_SCROLL_TOP_OFFSET = 40;
-const KEEP_PERSIST_MS = 7 * 24 * 60 * 60 * 1000;
 const PIN_TIP_DISMISSED_KEY = 'hasSeenPinTip';
 let inlineEditSession = null;
 let inlineInputModalSession = null;
@@ -76,6 +75,36 @@ const COLLECTION_SORT_OPTIONS = [
   { value: 'az', label: 'A–Z', menuLabel: 'Alphabetical (A–Z)' },
   { value: 'za', label: 'Z–A', menuLabel: 'Alphabetical (Z–A)' },
 ];
+
+
+function clampInt(value, min, max, fallback) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+function getAutoArchiveAfterDays(settings = state.settings) {
+  return clampInt(settings?.autoArchiveAfterDays, 1, 90, 14);
+}
+
+function getAutoArchiveAfterMs(settings = state.settings) {
+  return getAutoArchiveAfterDays(settings) * 24 * 60 * 60 * 1000;
+}
+
+function getKeepDurationDays(settings = state.settings) {
+  return clampInt(settings?.keepDurationDays, 1, 30, 7);
+}
+
+function getKeepDurationMs(settings = state.settings) {
+  return getKeepDurationDays(settings) * 24 * 60 * 60 * 1000;
+}
+
+function shouldShowTabUrl(inSearch = false) {
+  if (inSearch) {
+    return state.settings.showUrlsInSearchResults !== false;
+  }
+  return Boolean(state.settings.showItemUrls);
+}
 
 function getAccordionState() {
   return state.settings.accordionState || {};
@@ -106,7 +135,7 @@ async function loadData() {
   try {
     const settings = await WhyTabStorage.getSettings();
     if (!state.hasAutoArchiveCheckRun && settings.autoArchiveInactiveSessions) {
-      await WhyTabStorage.autoArchiveInactiveSessions();
+      await WhyTabStorage.autoArchiveInactiveSessions(Date.now(), getAutoArchiveAfterMs(settings));
     }
     state.hasAutoArchiveCheckRun = true;
 
@@ -502,7 +531,7 @@ function getPruneQueueCollections() {
 function isCollectionKeptRecently(collection, now = Date.now()) {
   const keptAt = Number(collection?.keptAt);
   if (!Number.isFinite(keptAt) || keptAt <= 0) return false;
-  return (now - keptAt) < KEEP_PERSIST_MS;
+  return (now - keptAt) < getKeepDurationMs();
 }
 
 function getUnresolvedActiveTabs(col) {
@@ -1632,7 +1661,7 @@ function buildTabRow(tab, collectionId, options = {}) {
         <span class="tab-title" data-url="${escAttr(tab.url)}">${inSearch ? highlightText(tab.title, searchQuery) : escHtml(tab.title)}</span>
         <div class="tag-container">${tagHtml}<button class="tag-add-btn" title="Add tag">+</button></div>
       </div>
-      ${state.settings.showItemUrls ? `<div class="tab-url">${inSearch ? highlightText(tab.url, searchQuery) : escHtml(tab.url)}</div>` : ''}
+      ${shouldShowTabUrl(inSearch) ? `<div class="tab-url">${inSearch ? highlightText(tab.url, searchQuery) : escHtml(tab.url)}</div>` : ''}
     </div>
     <div class="tab-meta">
       ${state.pruneMode.active ? `<span class="tab-activity">${escHtml(tabActivityText)}</span>` : ''}
@@ -2211,20 +2240,23 @@ function closeMoveModal() {
 }
 
 // ── Settings ───────────────────────────────────────────
+function syncAutoArchiveDaysVisibility() {
+  const row = $('#setting-auto-archive-days-row');
+  if (!row) return;
+  row.classList.toggle('is-hidden', state.settings.autoArchiveInactiveSessions === false);
+}
+
 function openSettings() {
   const s = state.settings;
 
-  const showUrlsEl = $('#setting-show-item-urls');
-  showUrlsEl.checked = Boolean(s.showItemUrls);
-
-  const contextualTitlesEl = $('#setting-contextual-auto-titles');
-  contextualTitlesEl.checked = Boolean(s.useContextualAutoTitles);
-
-  const showSortControlEl = $('#setting-show-sort-control');
-  showSortControlEl.checked = Boolean(s.showSortControl);
-
-  const autoArchiveEl = $('#setting-auto-archive-inactive');
-  autoArchiveEl.checked = s.autoArchiveInactiveSessions !== false;
+  $('#setting-show-item-urls').checked = Boolean(s.showItemUrls);
+  $('#setting-contextual-auto-titles').checked = Boolean(s.useContextualAutoTitles);
+  $('#setting-show-sort-control').checked = Boolean(s.showSortControl);
+  $('#setting-show-urls-in-search').checked = s.showUrlsInSearchResults !== false;
+  $('#setting-auto-archive-inactive').checked = s.autoArchiveInactiveSessions !== false;
+  $('#setting-auto-archive-after-days').value = String(getAutoArchiveAfterDays(s));
+  $('#setting-keep-duration-days').value = String(getKeepDurationDays(s));
+  syncAutoArchiveDaysVisibility();
 
   replaceWithClone('#setting-show-item-urls', async (el) => {
     try {
@@ -2258,16 +2290,51 @@ function openSettings() {
     }
   }, 'change');
 
+  replaceWithClone('#setting-show-urls-in-search', async (el) => {
+    try {
+      await WhyTabStorage.saveSettings({ ...state.settings, showUrlsInSearchResults: el.checked });
+      state.settings = await WhyTabStorage.getSettings();
+      render();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[WhyTab] save settings error:', err);
+    }
+  }, 'change');
 
   replaceWithClone('#setting-auto-archive-inactive', async (el) => {
     try {
       await WhyTabStorage.saveSettings({ ...state.settings, autoArchiveInactiveSessions: el.checked });
       state.settings = await WhyTabStorage.getSettings();
+      syncAutoArchiveDaysVisibility();
       if (state.settings.autoArchiveInactiveSessions) {
-        await WhyTabStorage.autoArchiveInactiveSessions();
+        await WhyTabStorage.autoArchiveInactiveSessions(Date.now(), getAutoArchiveAfterMs());
         await loadData();
       }
       render();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[WhyTab] save settings error:', err);
+    }
+  }, 'change');
+
+  replaceWithClone('#setting-auto-archive-after-days', async (el) => {
+    const nextDays = clampInt(el.value, 1, 90, getAutoArchiveAfterDays());
+    el.value = String(nextDays);
+    try {
+      await WhyTabStorage.saveSettings({ ...state.settings, autoArchiveAfterDays: nextDays });
+      state.settings = await WhyTabStorage.getSettings();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[WhyTab] save settings error:', err);
+    }
+  }, 'change');
+
+  replaceWithClone('#setting-keep-duration-days', async (el) => {
+    const nextDays = clampInt(el.value, 1, 30, getKeepDurationDays());
+    el.value = String(nextDays);
+    try {
+      await WhyTabStorage.saveSettings({ ...state.settings, keepDurationDays: nextDays });
+      state.settings = await WhyTabStorage.getSettings();
       showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
