@@ -64,6 +64,7 @@ const PRUNE_TALLY_HOLD_MS = 300;
 const PRUNE_ENTRY_SCROLL_MS = 720;
 const PRUNE_EXIT_SCROLL_MS = 500;
 const PRUNE_SCROLL_TOP_OFFSET = 40;
+const KEEP_PERSIST_MS = 7 * 24 * 60 * 60 * 1000;
 let inlineEditSession = null;
 let inlineInputModalSession = null;
 const COLLECTION_SORT_OPTIONS = [
@@ -392,6 +393,7 @@ function getCollectionsForCurrentMode(collections, sortMode) {
   const archived = visibleCollections.filter((c) => c.archived);
   const unpinnedActive = visibleCollections
     .filter((c) => !c.isPinned && !c.archived)
+    .filter((c) => !isCollectionKeptRecently(c))
     .filter((c) => !state.pruneMode.keptCollectionIds[c.id]);
 
   const frozenOrder = state.pruneMode.unpinnedOrderIds
@@ -405,7 +407,9 @@ function getCollectionsForCurrentMode(collections, sortMode) {
 
 function enterPruneMode() {
   const visibleCollections = state.collections.filter((c) => c.name !== 'Unsorted');
-  const unpinnedActive = visibleCollections.filter((c) => !c.isPinned && !c.archived);
+  const unpinnedActive = visibleCollections
+    .filter((c) => !c.isPinned && !c.archived)
+    .filter((c) => !isCollectionKeptRecently(c));
   state.pruneMode.active = true;
   state.pruneMode.unpinnedOrderIds = getPruneSortedUnpinnedCollections(unpinnedActive).map((c) => c.id);
   state.pruneMode.archivedCount = 0;
@@ -456,7 +460,18 @@ function incrementPruneTally(type) {
 }
 
 function getPruneQueueCollections() {
-  return state.collections.filter((c) => !c.isPinned && !c.archived && !state.pruneMode.keptCollectionIds[c.id]);
+  return state.collections.filter((c) => (
+    !c.isPinned
+    && !c.archived
+    && !isCollectionKeptRecently(c)
+    && !state.pruneMode.keptCollectionIds[c.id]
+  ));
+}
+
+function isCollectionKeptRecently(collection, now = Date.now()) {
+  const keptAt = Number(collection?.keptAt);
+  if (!Number.isFinite(keptAt) || keptAt <= 0) return false;
+  return (now - keptAt) < KEEP_PERSIST_MS;
 }
 
 function getUnresolvedActiveTabs(col) {
@@ -1456,8 +1471,8 @@ function buildTabRow(tab, collectionId, options = {}) {
   const tabActivityText = state.pruneMode.active ? formatRelativeActivity(tab.lastAccessedAt ?? null) : '';
   const archiveTitle = archived ? 'Unarchive' : 'Archive';
   const archiveIcon = archived
-    ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 10.5V4.2M6.5 4.2L4.5 6.2M6.5 4.2L8.5 6.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2.5H11V10.5H2V2.5Z" stroke="currentColor" stroke-width="1.1"/></svg>'
-    : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V8.8M6.5 8.8L4.5 6.8M6.5 8.8L8.5 6.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2.5H11V10.5H2V2.5Z" stroke="currentColor" stroke-width="1.1"/></svg>';
+    ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 9V5.5M6.5 5.5L4.8 7.2M6.5 5.5L8.2 7.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 5V8.5M6.5 8.5L4.8 6.8M6.5 8.5L8.2 6.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const archivedLabel = (archived || tab.collectionArchived) ? '<span class="archived-search-label">(archived)</span>' : '';
   const checkIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.8L5.2 9.5L10.5 3.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   const deleteIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5H10.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M4 3.5V2.5H9V3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 3.5L4 10.5H9L9.5 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -1836,16 +1851,19 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
   const hoverPinIcon = isPinned
     ? '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="currentColor" stroke-linejoin="round"/></svg>'
     : '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M3.5 1.5H9.5V11.5L6.5 9L3.5 11.5V1.5Z" stroke="currentColor" stroke-width="1.1" fill="none" stroke-linejoin="round"/></svg>';
+  const archiveIcon = '<svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 5V8.5M6.5 8.5L4.8 6.8M6.5 8.5L8.2 6.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   btn.innerHTML = `
     ${pinSvg}
     <span class="sidebar-col-title-group">
       <span class="sidebar-col-name ${col.autoTitleType ? 'auto-named' : 'user-named'}">${escHtml(col.name)}</span>
-      ${countBadge}
     </span>
-    <span class="sidebar-col-actions">
-      <button class="sidebar-hover-pin${isPinned ? ' sidebar-hover-pin-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
-
+    <span class="sidebar-col-right">
+      ${countBadge}
+      <span class="sidebar-col-actions">
+        <button class="sidebar-hover-pin${isPinned ? ' sidebar-hover-pin-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
+        ${isPinned ? '' : `<button class="sidebar-hover-archive" title="Archive">${archiveIcon}</button>`}
+      </span>
     </span>
   `;
 
@@ -1917,6 +1935,16 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
     }
   });
 
+  btn.querySelector('.sidebar-hover-archive')?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    try {
+      await WhyTabStorage.setCollectionArchived(col.id, true);
+      await loadData();
+      render();
+    } catch (err) {
+      console.error('[WhyTab] archive sidebar collection error:', err);
+    }
+  });
 
   return btn;
 }
@@ -2477,6 +2505,7 @@ async function keepTabInPrune(tabId, rowEl) {
 
   incrementPruneTally('kept');
   state.pruneMode.keptTabIds[tabId] = true;
+  await WhyTabStorage.setCollectionKeptAt(target.id, Date.now());
   animatePruneResolve(rowEl, () => render());
 }
 
@@ -2488,6 +2517,7 @@ async function keepCollectionInPrune(collectionId, blockEl) {
   const keepCount = getUnresolvedActiveTabs(target).length;
   incrementPruneTally({ type: 'kept', count: keepCount });
   state.pruneMode.keptCollectionIds[collectionId] = true;
+  await WhyTabStorage.setCollectionKeptAt(collectionId, Date.now());
 
   animatePruneResolve(blockEl, () => {
     render();
