@@ -22,16 +22,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // Rebuild URL index on install/update (ensures consistency)
   await WhyTabStorage.rebuildUrlIndex();
 
-  await ensureStarterCollections();
+  await syncOnboardingState();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  await ensureStarterCollections();
+  await syncOnboardingState();
 });
 
-// ── Suggested pinned templates ─────────────────────────
+// ── Onboarding state sync ──────────────────────────────
 
-async function ensureStarterCollections() {
+async function syncOnboardingState() {
   const data = await chrome.storage.local.get(['collections', 'hasCompletedOnboarding']);
   if (data.hasCompletedOnboarding) return;
 
@@ -39,20 +39,8 @@ async function ensureStarterCollections() {
   const tabCount = collections.reduce((sum, col) => sum + ((col.tabs || []).length), 0);
   if (collections.length > 0 || tabCount > 0) {
     await chrome.storage.local.set({ hasCompletedOnboarding: true });
-    return;
+    console.log('[WhyTab SW] Existing user detected; marked onboarding complete.');
   }
-
-  const templates = [
-    { name: 'Reading list' },
-    { name: 'Inspiration' },
-  ];
-
-  for (const tmpl of templates) {
-    await WhyTabStorage.addCollection(tmpl.name, [], { isPinned: true, isUserNamed: true });
-  }
-
-  await chrome.storage.local.set({ hasCompletedOnboarding: true });
-  console.log('[WhyTab SW] Created starter pinned collections.');
 }
 
 // ── Message handling ───────────────────────────────────

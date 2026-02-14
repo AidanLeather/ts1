@@ -65,6 +65,7 @@ body {
 .app {
   display: flex;
   height: 100vh;
+  position: relative;
 }
 
 /* ── Sidebar ─────────────────────────────────────────── */
@@ -1425,48 +1426,131 @@ body {
   text-align: center;
 }
 
-.empty-icon {
-  color: var(--text-tertiary);
-  margin-bottom: 16px;
-  opacity: 0.35;
-}
-
 .empty-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 4px;
-}
-
-.empty-sub {
   font-size: 13px;
-  color: var(--text-tertiary);
-}
-
-.empty-desc {
-  font-size: 13px;
+  font-weight: 300;
   color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-
-.empty-cta-btn {
-  margin-top: 16px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13px;
-  padding: 8px 16px;
-  border-radius: var(--radius-lg);
-  cursor: pointer;
-  transition: background var(--transition), color var(--transition);
-}
-
-.empty-cta-btn:hover {
-  background: var(--bg-hover);
 }
 
 .hidden {
   display: none !important;
+}
+
+.onboarding-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 120;
+}
+
+.onboarding-layer.is-tour {
+  position: fixed;
+}
+
+.onboarding-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 20, 17, 0.45);
+}
+
+.onboarding-layer:not(.is-tour) .onboarding-dim {
+  display: none;
+}
+
+.welcome-screen,
+.tour-final {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(460px, calc(100vw - 48px));
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 26px;
+  text-align: center;
+}
+
+.welcome-screen h2 {
+  font-size: 24px;
+  font-weight: 500;
+  color: #1f1f1f;
+  margin-bottom: 10px;
+}
+
+.welcome-screen p,
+.tour-final p,
+.tour-card p {
+  color: #747474;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tour-card {
+  position: fixed;
+  width: min(320px, calc(100vw - 32px));
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  padding: 16px;
+  z-index: 140;
+  transition: left 200ms ease, top 200ms ease, opacity 200ms ease;
+}
+
+.tour-card h3,
+.tour-final h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1f1f1f;
+  margin-bottom: 6px;
+}
+
+.tour-actions {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tour-step-indicator {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #a0a0a0;
+}
+
+.onboarding-primary-btn {
+  margin-top: 14px;
+  width: 200px;
+  max-width: 100%;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: var(--accent);
+  color: #fff;
+  font: 500 13px/1 var(--font);
+  cursor: pointer;
+}
+
+.tour-actions .onboarding-primary-btn {
+  width: auto;
+  margin-top: 0;
+}
+
+.onboarding-link-btn {
+  display: block;
+  margin: 10px auto 0;
+  background: none;
+  border: none;
+  color: #b2b2b2;
+  font: 300 12px/1 var(--font);
+  cursor: pointer;
+}
+
+.onboarding-highlight {
+  position: relative;
+  z-index: 130 !important;
+  outline: 2px solid #7f9f8f;
+  border-radius: 8px;
+  box-shadow: 0 0 0 3px rgba(127, 159, 143, 0.25);
 }
 
 /* ── Modal ────────────────────────────────────────────── */
