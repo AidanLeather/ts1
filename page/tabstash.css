@@ -85,19 +85,12 @@ body {
 .logo {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-  color: var(--text);
 }
-.logo::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #4E7A65;
-  flex-shrink: 0;
+
+.wordmark {
+  display: block;
+  width: 112px;
+  height: auto;
 }
 
 .sidebar-nav {
