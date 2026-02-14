@@ -204,7 +204,7 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px;
+  padding: 8px 0 8px 8px;
   width: 100%;
   border: none;
   background: none;
@@ -252,6 +252,7 @@ body {
   color: var(--sidebar-count-text);
   line-height: 1;
   flex-shrink: 0;
+  padding-right: 0;
   opacity: 0.5;
   transition: none;
 }
@@ -275,20 +276,21 @@ body {
   flex: 1;
 }
 
-/* ── Sidebar hover actions (pin + delete) ────────────── */
+/* ── Sidebar hover actions (pin toggle) ──────────────── */
 .sidebar-col-actions {
   display: none;
   align-items: center;
-  gap: 0;
-  flex-shrink: 0;
-  margin-left: auto;
+  justify-content: flex-end;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
 }
 .sidebar-col-item:hover .sidebar-col-actions {
   display: flex;
 }
 
-.sidebar-hover-pin,
-.sidebar-hover-delete {
+.sidebar-hover-pin {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -311,10 +313,6 @@ body {
 }
 .sidebar-hover-pin-active:hover {
   color: var(--text-secondary);
-}
-.sidebar-hover-delete:hover {
-  color: var(--danger);
-  background: var(--danger-bg);
 }
 
 .sidebar-footer {
@@ -764,15 +762,15 @@ body {
 .collection-header {
   display: flex;
   align-items: baseline;
-  padding: 6px 0 6px 16px;
+  padding: 9px 0 9px 16px;
   cursor: pointer;
   user-select: none;
   gap: 4px;
   border-radius: var(--radius-md);
-  transition: background var(--transition);
+  transition: background-color 150ms ease-out;
 }
 .collection-header:hover {
-  background: #f9fafb;
+  background: #f7f7f7;
 }
 .collection-header--single {
   padding-left: 0;
