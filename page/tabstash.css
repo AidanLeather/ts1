@@ -1071,16 +1071,18 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  overflow: hidden;
+  overflow: visible;
   max-width: 0;
   opacity: 0;
   transition: max-width 100ms ease, opacity 100ms ease;
   flex-shrink: 0;
+  pointer-events: none;
 }
 .collection-header:hover .col-actions,
 .col-actions.persistent {
   max-width: 220px;
   opacity: 1;
+  pointer-events: auto;
 }
 
 .collection-header:hover .collection-meta {
@@ -1332,17 +1334,19 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  overflow: hidden;
+  overflow: visible;
   max-width: 0;
   opacity: 0;
   transition: max-width 100ms ease, opacity 100ms ease;
   flex-shrink: 0;
   justify-content: flex-end;
+  pointer-events: none;
 }
 .tab-row:hover .tab-actions,
 .tab-actions.persistent {
   max-width: 220px;
   opacity: 1;
+  pointer-events: auto;
 }
 .tab-row:hover .tab-meta {
   margin-right: 4px;
