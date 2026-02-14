@@ -1023,15 +1023,16 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const pruneMetaHtml = state.pruneMode.active && !readOnly && !col.isPinned
     ? `<span class="collection-activity" title="${escAttr(formatRelativeActivity(col.lastInteractedAt))}">${escHtml(formatRelativeActivity(col.lastInteractedAt))}${shouldShowUntouchedHint(col) ? '<span class="collection-untouched">Untouched</span>' : ''}</span>`
     : '';
+  const titleGroupClass = `collection-title-group${col.isPinned ? ' collection-title-group--pinned' : ''}`;
 
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
     <div class="collection-left">
-      <div class="collection-main">
+      <div class="${titleGroupClass}">
         <span class="${nameClass}">${escHtml(collectionName)}</span>${archivedNameLabel}
         <span class="collection-tab-count">${countText}</span>
+        ${pruneMetaHtml}
       </div>
-      ${pruneMetaHtml}
     </div>
     <div class="collection-right">
       ${timestampHtml}
