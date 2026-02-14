@@ -396,9 +396,15 @@ function exitPruneMode() {
 }
 
 function incrementPruneTally(type) {
+  let amount = 1;
+  if (typeof type === 'object' && type !== null) {
+    amount = Number(type.count) || 0;
+    type = type.type;
+  }
   if (!state.pruneMode.active) return;
-  if (type === 'archived') state.pruneMode.archivedCount += 1;
-  if (type === 'deleted') state.pruneMode.deletedCount += 1;
+  if (!amount) return;
+  if (type === 'archived') state.pruneMode.archivedCount += amount;
+  if (type === 'deleted') state.pruneMode.deletedCount += amount;
   animatePruneTally();
 }
 
@@ -990,6 +996,8 @@ function buildCollectionBlock(col, readOnly, collapsible) {
   const menuActions = [archivedToggleMenuItem].filter(Boolean);
 
   if (!readOnly) {
+    const showDeleteInToolbar = state.pruneMode.active && !col.isPinned && !col.isUserNamed;
+
     primaryActions.push(`
       <button class="icon-btn restore-all-btn" title="Restore all">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1009,10 +1017,15 @@ function buildCollectionBlock(col, readOnly, collapsible) {
       menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
     } else {
       primaryActions.push(`<button class="icon-btn archive-col-btn" title="${col.archived ? 'Unarchive' : 'Archive'}">${archiveIcon}</button>`);
+      if (showDeleteInToolbar) {
+        primaryActions.push('<button class="icon-btn delete-col-btn" title="Delete collection"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5H10.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M4 3.5V2.5H9V3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 3.5L4 10.5H9L9.5 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg></button>');
+      }
       menuActions.push('<button class="inline-menu-item pin-btn">Pin</button>');
     }
 
-    menuActions.push('<button class="inline-menu-item delete-col-btn">Delete collection</button>');
+    if (!showDeleteInToolbar) {
+      menuActions.push('<button class="inline-menu-item delete-col-btn">Delete collection</button>');
+    }
   }
 
   const collectionMenu = readOnly
@@ -1060,25 +1073,27 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     });
   }
 
-  if (!readOnly && collapsible && state.currentView === 'all' && !state.pruneMode.active) {
-    header.draggable = true;
-    header.classList.add('draggable-collection');
-    header.addEventListener('dragstart', (e) => {
-      dragState.type = 'collection';
-      dragState.collectionId = col.id;
-      dragState.collectionPinned = Boolean(col.isPinned);
-      dragState.source = 'main';
-      div.classList.add('is-dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', col.id);
-    });
-    header.addEventListener('dragend', () => {
-      dragState.type = null;
-      dragState.collectionId = null;
-      dragState.collectionPinned = null;
-      dragState.source = null;
-      $$('.collection-block').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
-    });
+  if (!readOnly && collapsible && state.currentView === 'all') {
+    if (!state.pruneMode.active) {
+      header.draggable = true;
+      header.classList.add('draggable-collection');
+      header.addEventListener('dragstart', (e) => {
+        dragState.type = 'collection';
+        dragState.collectionId = col.id;
+        dragState.collectionPinned = Boolean(col.isPinned);
+        dragState.source = 'main';
+        div.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', col.id);
+      });
+      header.addEventListener('dragend', () => {
+        dragState.type = null;
+        dragState.collectionId = null;
+        dragState.collectionPinned = null;
+        dragState.source = null;
+        $$('.collection-block').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
+      });
+    }
     header.addEventListener('dragover', (e) => {
       if (dragState.type === 'collection') {
         if (!dragState.collectionId || dragState.collectionPinned !== Boolean(col.isPinned)) return;
@@ -1307,7 +1322,7 @@ function buildTabRow(tab, collectionId, options = {}) {
   const row = document.createElement('div');
   row.className = `tab-row${archived || tab.collectionArchived ? ' tab-row-archived' : ''}${state.pruneMode.active ? ' prune-active' : ''}`;
   row.dataset.id = tab.id;
-  row.draggable = !inSearch && !state.pruneMode.active;
+  row.draggable = !inSearch;
 
   const tags = tab.tags || [];
 
@@ -1364,9 +1379,7 @@ function buildTabRow(tab, collectionId, options = {}) {
     </div>
   `;
 
-  if (!inSearch && !state.pruneMode.active) {
-    row.draggable = true;
-
+  if (!inSearch) {
     row.addEventListener('dragstart', (e) => {
       dragState.type = 'tab';
       dragState.tabId = tab.id;
@@ -2184,7 +2197,9 @@ function renderPruneTally() {
   const tally = $('#prune-tally');
   if (!tally) return;
 
-  tally.textContent = `${state.pruneMode.archivedCount} archived · ${state.pruneMode.deletedCount} deleted`;
+  const archiveLabel = `tab${state.pruneMode.archivedCount === 1 ? '' : 's'} archived`;
+  const deleteLabel = `tab${state.pruneMode.deletedCount === 1 ? '' : 's'} deleted`;
+  tally.textContent = `${state.pruneMode.archivedCount} ${archiveLabel} · ${state.pruneMode.deletedCount} ${deleteLabel}`;
   const shouldShow = state.pruneMode.active || Date.now() < state.pruneMode.exitDisplayUntil;
   tally.classList.toggle('hidden', !shouldShow);
   tally.classList.toggle('fade-out', !state.pruneMode.active && shouldShow);
@@ -2326,11 +2341,12 @@ async function archiveCollectionWithUndo(collectionId, archive = true) {
   const snapshot = await WhyTabStorage.getAll();
   const target = snapshot.collections.find((c) => c.id === collectionId);
   if (!target) return;
+  const archivedTabCount = target.tabs.filter((tab) => !tab.archived).length;
   await WhyTabStorage.setCollectionArchived(collectionId, archive);
   await loadData();
   if (state.currentView === collectionId) state.currentView = 'all';
   render();
-  if (archive) incrementPruneTally('archived');
+  if (archive) incrementPruneTally({ type: 'archived', count: archivedTabCount });
 
   showToast(`Collection ${archive ? 'archived' : 'restored'}`, {
     actionLabel: 'Undo',
@@ -2347,11 +2363,12 @@ async function deleteCollectionWithUndo(collectionId) {
   const snapshot = await WhyTabStorage.getAll();
   const target = snapshot.collections.find((c) => c.id === collectionId);
   if (!target) return;
+  const deletedTabCount = target.tabs.length;
   await WhyTabStorage.removeCollection(collectionId);
   if (state.currentView === collectionId) state.currentView = 'all';
   await loadData();
   render();
-  incrementPruneTally('deleted');
+  incrementPruneTally({ type: 'deleted', count: deletedTabCount });
 
   showToast('Collection deleted', {
     actionLabel: 'Undo',
