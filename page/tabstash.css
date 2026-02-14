@@ -807,7 +807,7 @@ body {
 .collection-header {
   display: flex;
   align-items: center;
-  padding: 9px 0 9px 16px;
+  padding: 9px 16px 9px 16px;
   cursor: pointer;
   user-select: none;
   gap: 4px;
@@ -847,7 +847,7 @@ body {
 
 .collection-name {
   font-size: 14px;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   max-width: min(50%, 400px);
   overflow: hidden;
@@ -877,11 +877,19 @@ body {
 }
 
 .collection-main {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.collection-left {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
 }
 
 .collection-right {
@@ -907,7 +915,7 @@ body {
 
 
 .collection-activity {
-  margin-left: 10px;
+  margin-left: 0;
   font-size: 12px;
   font-weight: 300;
   color: #a0a0a0;
@@ -1890,7 +1898,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
   min-height: 40px;
   align-items: center;
   gap: 0;
-  padding: 8px 0;
+  padding: 8px 16px;
   border-radius: var(--radius-md);
 }
 .collection-header.highlight {
