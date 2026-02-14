@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         createdAt,
         autoTitleType: generated.autoTitleType,
       });
-      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
+      console.log(`[WhyTab popup] Named collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
       await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
 
@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         autoTitleType: 'timeOfDay',
       });
       await closeTabs(leftTabs);
-      showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the left`);
+      showStatus(`Named ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the left`);
     })
   );
 
@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         autoTitleType: 'timeOfDay',
       });
       await closeTabs(rightTabs);
-      showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the right`);
+      showStatus(`Named ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the right`);
     })
   );
 
@@ -151,9 +151,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         createdAt,
         autoTitleType: generated.autoTitleType,
       });
-      console.log(`[WhyTab popup] Saved collection "${name}" (${col.id})`);
+      console.log(`[WhyTab popup] Named collection "${name}" (${col.id})`);
 
-      showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
+      showStatus(`Named ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
     })
   );
 
@@ -175,7 +175,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? {}
         : { createdAt, autoTitleType: 'timeOfDay' };
       await WhyTabStorage.addCollection(name, [active], options);
-      showStatus('Saved this tab');
+      showStatus('Named this tab');
     })
   );
 
