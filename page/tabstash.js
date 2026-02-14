@@ -777,11 +777,11 @@ function bindKeyboard() {
       return;
     }
 
-    if (withModifier && ['s', 'n', 'p', 'u'].includes(key) && (!inInput || paletteOpen)) {
+    if (withModifier && ['s', 'e', 'p', 'u'].includes(key) && !inInput) {
       e.preventDefault();
       if (paletteOpen) closePalette();
       if (key === 's') saveAndCloseTabs();
-      if (key === 'n') handleNewCollection().catch((err) => console.error('[WhyTab] New collection error:', err));
+      if (key === 'e') handleNewCollection().catch((err) => console.error('[WhyTab] New collection error:', err));
       if (key === 'p') togglePruneMode().catch((err) => console.error('[WhyTab] prune mode toggle error:', err));
       if (key === 'u') toggleItemUrls().catch((err) => console.error('[WhyTab] toggle URLs error:', err));
       return;
@@ -1928,8 +1928,7 @@ function updateSidebar() {
     const savedBtn = document.createElement('button');
     savedBtn.className = 'nav-item nav-item-muted nav-item-archived';
     savedBtn.dataset.view = 'saved';
-    const namedCount = getSavedCollections().length;
-    savedBtn.innerHTML = `Named${namedCount ? ` <span class="sidebar-col-count">(${namedCount})</span>` : ''}`;
+    savedBtn.textContent = 'Named';
     savedBtn.classList.toggle('active', state.currentView === 'saved');
     savedBtn.addEventListener('click', () => {
       state.currentView = 'saved';
@@ -2432,7 +2431,7 @@ async function goToCollectionFromCommand(collectionId) {
 function getPaletteSections() {
   const actions = [
     { label: 'Save & close tabs', shortcut: 's', action: () => saveAndCloseTabs() },
-    { label: 'New collection', shortcut: 'n', action: () => handleNewCollection() },
+    { label: 'New collection', shortcut: 'e', action: () => handleNewCollection() },
     { label: state.pruneMode.active ? 'Exit prune mode' : 'Enter prune mode', shortcut: 'p', action: () => togglePruneMode() },
     { label: 'Toggle item URLs', shortcut: 'u', action: () => toggleItemUrls() },
     { label: 'Export data', action: async () => {
