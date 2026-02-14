@@ -806,7 +806,7 @@ body {
 
 .collection-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   padding: 9px 0 9px 16px;
   cursor: pointer;
   user-select: none;
@@ -847,7 +847,9 @@ body {
 
 .collection-name {
   font-size: 14px;
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: min(50%, 400px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -869,9 +871,25 @@ body {
   align-items: center;
   min-height: 18px;
   flex-shrink: 0;
-  margin-left: 8px;
+  margin-left: 4px;
   padding-left: 0;
   opacity: 0.5;
+}
+
+.collection-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.collection-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .collection-spacer {
@@ -881,23 +899,26 @@ body {
 .collection-meta {
   font-size: 11px;
   color: var(--text-tertiary);
-  margin-right: 0;
   white-space: nowrap;
   flex-shrink: 0;
   opacity: 0.4;
+  transition: margin-right 100ms ease;
 }
 
 
 .collection-activity {
-  width: 100%;
-  margin-left: 20px;
-  margin-top: 1px;
+  margin-left: 10px;
   font-size: 12px;
   font-weight: 300;
   color: #a0a0a0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+  flex: 0 1 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .collection-untouched {
@@ -934,15 +955,20 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
+  max-width: 0;
   opacity: 0;
-  transition: opacity var(--transition);
+  transition: max-width 100ms ease, opacity 100ms ease;
   flex-shrink: 0;
-  margin-left: auto;
-  margin-right: 8px;
 }
 .collection-header:hover .col-actions,
 .col-actions.persistent {
+  max-width: 220px;
   opacity: 1;
+}
+
+.collection-header:hover .collection-meta {
+  margin-right: 4px;
 }
 
 .collection-body {
@@ -1996,14 +2022,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 
 
 .collection-header.prune-active {
-  align-items: flex-start;
-}
-
-.collection-header.prune-active .collection-name {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  line-height: 1.25;
+  align-items: center;
 }
 
 

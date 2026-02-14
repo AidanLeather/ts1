@@ -967,7 +967,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     : (col.name || '');
 
   const preciseTimestamp = col.createdAt ? formatPreciseTimestamp(col.createdAt) : '';
-  const timestampHtml = collapsible && !col.isPinned && preciseTimestamp
+  const timestampHtml = collapsible && preciseTimestamp
     ? `<span class="collection-meta" title="${escAttr(preciseTimestamp)}">${escHtml(preciseTimestamp)}</span>`
     : '';
 
@@ -1021,20 +1021,24 @@ function buildCollectionBlock(col, readOnly, collapsible) {
 
   const archivedNameLabel = readOnly && col.archived ? '<span class="archived-search-label">(archived)</span>' : '';
   const pruneMetaHtml = state.pruneMode.active && !readOnly
-    ? `<div class="collection-activity">${escHtml(formatRelativeActivity(col.lastInteractedAt))}${shouldShowUntouchedHint(col) ? '<span class="collection-untouched">Untouched</span>' : ''}</div>`
+    ? `<span class="collection-activity" title="${escAttr(formatRelativeActivity(col.lastInteractedAt))}">${escHtml(formatRelativeActivity(col.lastInteractedAt))}${shouldShowUntouchedHint(col) ? '<span class="collection-untouched">Untouched</span>' : ''}</span>`
     : '';
 
   header.innerHTML = `
     ${collapsible ? `<span class="collapse-icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 2.5L8 6L4 9.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>` : '<span class="collapse-icon placeholder"></span>'}
-    <span class="${nameClass}">${escHtml(collectionName)}</span>${archivedNameLabel}
-    <span class="collection-tab-count">${countText}</span>
-    ${pruneMetaHtml}
-    ${readOnly ? '' : `
-    <div class="col-actions${state.pruneMode.active ? ' persistent' : ''}">
-      ${primaryActions.join('')}
-      ${collectionMenu}
-    </div>`}
-    ${timestampHtml}
+    <div class="collection-main">
+      <span class="${nameClass}">${escHtml(collectionName)}</span>${archivedNameLabel}
+      <span class="collection-tab-count">${countText}</span>
+      ${pruneMetaHtml}
+    </div>
+    <div class="collection-right">
+      ${timestampHtml}
+      ${readOnly ? '' : `
+      <div class="col-actions${state.pruneMode.active && !col.isPinned ? ' persistent' : ''}">
+        ${primaryActions.join('')}
+        ${collectionMenu}
+      </div>`}
+    </div>
   `;
 
   if (collapsible) {
