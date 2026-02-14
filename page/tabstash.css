@@ -1736,18 +1736,23 @@ body {
 }
 
 .setting-row-child {
-  margin-top: -8px;
   padding-top: 8px;
   padding-left: 30px;
-  transition: max-height 150ms ease, opacity 150ms ease, margin 150ms ease, padding 150ms ease;
-  max-height: 90px;
+  overflow: hidden;
+  transition: max-height 150ms ease, opacity 150ms ease, transform 150ms ease, padding 150ms ease;
+  max-height: 120px;
   opacity: 1;
+  transform: translateY(0);
+}
+
+.setting-row + .setting-row.setting-row-child {
+  border-top: none;
 }
 
 .setting-row-child.is-hidden {
   max-height: 0;
   opacity: 0;
-  margin-top: 0;
+  transform: translateY(-6px);
   padding-top: 0;
   padding-bottom: 0;
   border-top: none;
