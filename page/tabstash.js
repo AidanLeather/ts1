@@ -1701,8 +1701,10 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
 
   btn.innerHTML = `
     ${pinSvg}
-    <span class="sidebar-col-name ${col.autoTitleType ? 'auto-named' : 'user-named'}">${escHtml(col.name)}</span>
-    ${countBadge}
+    <span class="sidebar-col-title-group">
+      <span class="sidebar-col-name ${col.autoTitleType ? 'auto-named' : 'user-named'}">${escHtml(col.name)}</span>
+      ${countBadge}
+    </span>
     <span class="sidebar-col-actions">
       <button class="sidebar-hover-pin${isPinned ? ' sidebar-hover-pin-active' : ''}" title="${isPinned ? 'Unpin' : 'Pin'}">${hoverPinIcon}</button>
 
