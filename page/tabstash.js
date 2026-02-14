@@ -60,8 +60,10 @@ let dragState = {
 };
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
-const PRUNE_TALLY_HOLD_MS = 2000;
-const PRUNE_COMPLETE_HOLD_MS = 3000;
+const PRUNE_TALLY_HOLD_MS = 300;
+const PRUNE_ENTRY_SCROLL_MS = 720;
+const PRUNE_EXIT_SCROLL_MS = 500;
+const PRUNE_SCROLL_TOP_OFFSET = 40;
 let inlineEditSession = null;
 let inlineInputModalSession = null;
 const COLLECTION_SORT_OPTIONS = [
@@ -300,11 +302,6 @@ function bindEvents() {
 
   $('#prune-mode-btn')?.addEventListener('click', async () => {
     if (state.pruneMode.active) {
-      const remaining = getPruneRemainingCount();
-      const doneReady = remaining !== 0
-        || !state.pruneMode.completionReachedAt
-        || (Date.now() - state.pruneMode.completionReachedAt >= PRUNE_COMPLETE_HOLD_MS);
-      if (!doneReady) return;
       exitPruneMode();
       await loadData();
       render();
@@ -333,6 +330,27 @@ function bindEvents() {
   });
 
   document.addEventListener('click', (e) => {
+    const menuButton = e.target.closest('.inline-menu .menu-btn');
+    if (menuButton) {
+      e.preventDefault();
+      e.stopPropagation();
+      const menu = menuButton.closest('.inline-menu');
+      if (menu) {
+        const isOpen = menu.hasAttribute('open');
+        $$('.inline-menu[open]').forEach((other) => {
+          if (other !== menu) other.removeAttribute('open');
+        });
+        if (isOpen) menu.removeAttribute('open');
+        else menu.setAttribute('open', '');
+      }
+      return;
+    }
+
+    if (e.target.closest('.inline-menu-panel')) {
+      e.stopPropagation();
+      return;
+    }
+
     if (!e.target.closest('.inline-menu')) {
       $$('.inline-menu[open]').forEach((menu) => menu.removeAttribute('open'));
     }
@@ -393,12 +411,12 @@ function enterPruneMode() {
   state.pruneMode.archivedCount = 0;
   state.pruneMode.deletedCount = 0;
   state.pruneMode.keptCount = 0;
-  state.pruneMode.exitDisplayUntil = 0;
   state.pruneMode.keptCollectionIds = {};
   state.pruneMode.keptTabIds = {};
   state.pruneMode.lastFeaturedCollectionId = null;
   state.pruneMode.completionReachedAt = 0;
   state.pruneMode.lastRenderedCounts = null;
+  state.pruneMode.exitDisplayUntil = 0;
 }
 
 function exitPruneMode() {
@@ -411,6 +429,7 @@ function exitPruneMode() {
   state.pruneMode.lastRenderedCounts = null;
   state.pruneMode.exitDisplayUntil = Date.now() + PRUNE_TALLY_HOLD_MS;
   renderPruneTally();
+  scrollMainToTop(PRUNE_EXIT_SCROLL_MS);
   setTimeout(() => {
     if (Date.now() < state.pruneMode.exitDisplayUntil || state.pruneMode.active) return;
     state.pruneMode.archivedCount = 0;
@@ -419,7 +438,7 @@ function exitPruneMode() {
     state.pruneMode.exitDisplayUntil = 0;
     state.pruneMode.lastRenderedCounts = null;
     renderPruneTally();
-  }, PRUNE_TALLY_HOLD_MS + 330);
+  }, PRUNE_TALLY_HOLD_MS);
 }
 
 function incrementPruneTally(type) {
@@ -632,12 +651,39 @@ function updateTabDropIndicator(collectionId, body, dropIndex) {
   dragState.tabDropIndex = dropIndex;
 }
 
-function scrollMainToTop() {
+function scrollMainToTop(duration = PRUNE_EXIT_SCROLL_MS) {
   const content = $('#content');
-  if (content) {
-    content.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (content) animateScroll(content, 0, duration);
+  animateScroll(window, 0, duration);
+}
+
+function easeOutCubic(t) {
+  return 1 - ((1 - t) ** 3);
+}
+
+function animateScroll(target, to, duration = 600) {
+  const start = target === window ? window.scrollY : target.scrollTop;
+  const change = to - start;
+  if (Math.abs(change) < 1) return;
+
+  const startAt = performance.now();
+  const step = (now) => {
+    const progress = Math.min(1, (now - startAt) / duration);
+    const next = start + (change * easeOutCubic(progress));
+    if (target === window) window.scrollTo(0, next);
+    else target.scrollTop = next;
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function scrollCollectionIntoPruneFocus(block, duration = PRUNE_ENTRY_SCROLL_MS) {
+  const content = $('#content');
+  if (!content || !block) return;
+  const contentRect = content.getBoundingClientRect();
+  const blockRect = block.getBoundingClientRect();
+  const targetTop = content.scrollTop + (blockRect.top - contentRect.top) - PRUNE_SCROLL_TOP_OFFSET;
+  animateScroll(content, Math.max(0, targetTop), duration);
 }
 
 // ── Keyboard ───────────────────────────────────────────
@@ -1047,44 +1093,43 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 9V5.5M6.5 5.5L4.8 7.2M6.5 5.5L8.2 7.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>'
     : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 4.5H11V11H2V4.5Z" stroke="currentColor" stroke-width="1.1"/><path d="M1.5 2H11.5V4.5H1.5V2Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.5 5V8.5M6.5 8.5L4.8 6.8M6.5 8.5L8.2 6.8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+  const checkIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.8L5.2 9.5L10.5 3.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const deleteIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5H10.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M4 3.5V2.5H9V3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 3.5L4 10.5H9L9.5 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
   const primaryActions = [];
-  const menuActions = [archivedToggleMenuItem].filter(Boolean);
+  const menuActions = state.pruneMode.active ? [] : [archivedToggleMenuItem].filter(Boolean);
 
   if (!readOnly) {
-    const showDeleteInToolbar = state.pruneMode.active && !col.isPinned && !col.isUserNamed;
-
-    primaryActions.push(`
-      <button class="icon-btn restore-all-btn" title="Restore all">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    `);
-    primaryActions.push(`
-      <button class="icon-btn rename-btn" title="Rename">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
-      </button>
-    `);
-
-    if (col.isPinned) {
-      primaryActions.push(`<button class="icon-btn pin-btn" title="Unpin">${pinIcon}</button>`);
-      menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
-    } else if (col.isUserNamed) {
-      primaryActions.push(`<button class="icon-btn pin-btn" title="Pin">${pinIcon}</button>`);
-      menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
-    } else {
-      if (state.pruneMode.active) {
-        primaryActions.push('<button class="icon-btn keep-col-btn" title="Keep collection">Keep</button>');
-      }
+    if (state.pruneMode.active) {
+      primaryActions.push(`<button class="icon-btn keep-col-btn" title="Keep">${checkIcon}</button>`);
       primaryActions.push(`<button class="icon-btn archive-col-btn" title="${col.archived ? 'Unarchive' : 'Archive'}">${archiveIcon}</button>`);
-      if (showDeleteInToolbar) {
-        primaryActions.push('<button class="icon-btn delete-col-btn" title="Delete collection"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5H10.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M4 3.5V2.5H9V3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 3.5L4 10.5H9L9.5 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg></button>');
-      }
-      menuActions.push('<button class="inline-menu-item pin-btn">Pin</button>');
-      if (state.pruneMode.active) {
-        menuActions.push('<button class="inline-menu-item keep-col-btn">Keep collection</button>');
-      }
-    }
+      primaryActions.push(`<button class="icon-btn delete-col-btn" title="Delete collection">${deleteIcon}</button>`);
+      menuActions.push('<button class="inline-menu-item restore-all-btn">Restore / Open all tabs</button>');
+      menuActions.push('<button class="inline-menu-item rename-btn">Rename</button>');
+      menuActions.push(`<button class="inline-menu-item pin-btn">${col.isPinned ? 'Unpin' : 'Pin'}</button>`);
+    } else {
+      primaryActions.push(`
+        <button class="icon-btn restore-all-btn" title="Restore all">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      `);
+      primaryActions.push(`
+        <button class="icon-btn rename-btn" title="Rename">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
+        </button>
+      `);
 
-    if (!showDeleteInToolbar) {
+      if (col.isPinned) {
+        primaryActions.push(`<button class="icon-btn pin-btn" title="Unpin">${pinIcon}</button>`);
+        menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
+      } else if (col.isUserNamed) {
+        primaryActions.push(`<button class="icon-btn pin-btn" title="Pin">${pinIcon}</button>`);
+        menuActions.push(`<button class="inline-menu-item archive-col-btn">${col.archived ? 'Unarchive' : 'Archive'}</button>`);
+      } else {
+        primaryActions.push(`<button class="icon-btn archive-col-btn" title="${col.archived ? 'Unarchive' : 'Archive'}">${archiveIcon}</button>`);
+        menuActions.push('<button class="inline-menu-item pin-btn">Pin</button>');
+      }
+
       menuActions.push('<button class="inline-menu-item delete-col-btn">Delete collection</button>');
     }
   }
@@ -1111,7 +1156,7 @@ function buildCollectionBlock(col, readOnly, collapsible) {
     <div class="collection-right">
       ${timestampHtml}
       ${readOnly ? '' : `
-      <div class="col-actions${state.pruneMode.active && !col.isPinned ? ' persistent' : ''}">
+      <div class="col-actions${state.pruneMode.active ? ' persistent' : ''}">
         ${primaryActions.join('')}
         ${collectionMenu}
       </div>`}
@@ -1414,6 +1459,16 @@ function buildTabRow(tab, collectionId, options = {}) {
     ? '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 10.5V4.2M6.5 4.2L4.5 6.2M6.5 4.2L8.5 6.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2.5H11V10.5H2V2.5Z" stroke="currentColor" stroke-width="1.1"/></svg>'
     : '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 2.5V8.8M6.5 8.8L4.5 6.8M6.5 8.8L8.5 6.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 2.5H11V10.5H2V2.5Z" stroke="currentColor" stroke-width="1.1"/></svg>';
   const archivedLabel = (archived || tab.collectionArchived) ? '<span class="archived-search-label">(archived)</span>' : '';
+  const checkIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 6.8L5.2 9.5L10.5 3.8" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const deleteIcon = '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2.5 3.5H10.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/><path d="M4 3.5V2.5H9V3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/><path d="M3.5 3.5L4 10.5H9L9.5 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const openBtnHtml = '<button class="icon-btn open-btn" title="Open"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>';
+  const editBtnHtml = '<button class="icon-btn edit-btn" title="Edit"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg></button>';
+  const actionButtonsHtml = state.pruneMode.active
+    ? `<button class="icon-btn keep-tab-btn" title="Keep">${checkIcon}</button><button class="icon-btn archive-tab-btn" title="${archiveTitle}">${archiveIcon}</button><button class="icon-btn del-tab-btn" title="Delete tab">${deleteIcon}</button>`
+    : `${openBtnHtml}${editBtnHtml}<button class="icon-btn archive-tab-btn" title="${archiveTitle}">${archiveIcon}</button>`;
+  const tabMenuItems = state.pruneMode.active
+    ? '<button class="inline-menu-item open-btn">Open tab</button><button class="inline-menu-item edit-btn">Rename</button><button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button>'
+    : '<button class="inline-menu-item move-tab-btn">Move to collection</button><button class="inline-menu-item del-tab-btn">Delete</button>';
 
   row.innerHTML = `
     ${inSearch ? '' : `<span class="tab-drag-handle" aria-hidden="true" title="Drag tab">
@@ -1440,15 +1495,8 @@ function buildTabRow(tab, collectionId, options = {}) {
       ${showDate ? `<span class="tab-date">${relativeDate(tab.savedAt)}</span>` : ''}
     </div>
     <div class="tab-actions${state.pruneMode.active ? ' persistent' : ''}">
-      <button class="icon-btn open-btn" title="Open">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 6.5H10.5M10.5 6.5L7 3M10.5 6.5L7 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="icon-btn edit-btn" title="Edit">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M9.5 2L11 3.5L4.5 10H3V8.5L9.5 2Z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg>
-      </button>
-      ${state.pruneMode.active ? '<button class="icon-btn keep-tab-btn" title="Keep tab">Keep</button>' : ''}
-      <button class="icon-btn archive-tab-btn" title="${archiveTitle}">${archiveIcon}</button>
-      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel"><button class="inline-menu-item move-tab-btn">Move to collection</button>${state.pruneMode.active ? '<button class="inline-menu-item keep-tab-btn">Keep tab</button>' : ''}<button class="inline-menu-item del-tab-btn">Delete</button></div></details>
+      ${actionButtonsHtml}
+      <details class="inline-menu tab-menu"><summary class="icon-btn menu-btn" title="More"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="2.5" cy="6.5" r="1" fill="currentColor"/><circle cx="6.5" cy="6.5" r="1" fill="currentColor"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor"/></svg></summary><div class="inline-menu-panel">${tabMenuItems}</div></details>
     </div>
   `;
 
@@ -1893,11 +1941,7 @@ function updateViewHeader() {
   pruneBtn?.classList.toggle('active', state.pruneMode.active);
   if (pruneBtn) {
     pruneBtn.textContent = state.pruneMode.active ? 'Done' : 'Prune';
-    const remaining = getPruneRemainingCount();
-    const doneReady = !state.pruneMode.active || remaining !== 0
-      || !state.pruneMode.completionReachedAt
-      || (Date.now() - state.pruneMode.completionReachedAt >= PRUNE_COMPLETE_HOLD_MS);
-    pruneBtn.disabled = !doneReady;
+    pruneBtn.disabled = false;
   }
   renderSortControl();
 
@@ -2296,15 +2340,10 @@ function renderPruneTally() {
     remaining,
   };
 
-  const doneReady = state.pruneMode.active
-    && remaining === 0
-    && state.pruneMode.completionReachedAt
-    && (Date.now() - state.pruneMode.completionReachedAt >= PRUNE_COMPLETE_HOLD_MS);
-
   if (state.pruneMode.active && remaining === 0) {
     tally.innerHTML = `
-      <div class="prune-all-sorted">All sorted</div>
-      <div class="prune-summary ${doneReady ? '' : 'hidden'}">${next.archived} tab${next.archived === 1 ? '' : 's'} archived · ${next.deleted} tab${next.deleted === 1 ? '' : 's'} deleted · ${next.kept} tab${next.kept === 1 ? '' : 's'} kept</div>
+      <div class="prune-all-sorted">All sorted ✓</div>
+      <div class="prune-summary">${next.archived} tab${next.archived === 1 ? '' : 's'} archived · ${next.deleted} tab${next.deleted === 1 ? '' : 's'} deleted · ${next.kept} tab${next.kept === 1 ? '' : 's'} kept</div>
     `;
   } else {
     tally.innerHTML = `
@@ -2470,8 +2509,9 @@ function handleFeaturedCollectionTransition() {
 
   const block = document.getElementById(`collection-${featuredId}`);
   if (block) {
+    const duration = PRUNE_ENTRY_SCROLL_MS;
     setTimeout(() => {
-      block.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+      scrollCollectionIntoPruneFocus(block, duration);
     }, 10);
   }
 }
