@@ -175,10 +175,13 @@
               <div class="setting-label">Show item URLs</div>
               <div class="setting-desc">Display each tab URL directly in list rows.</div>
             </div>
-            <label class="setting-switch">
-              <input id="setting-show-item-urls" type="checkbox">
-              <span class="slider"></span>
-            </label>
+            <div class="setting-control setting-control-shortcut">
+              <span class="setting-shortcut-badge" aria-hidden="true">⌘ U</span>
+              <label class="setting-switch">
+                <input id="setting-show-item-urls" type="checkbox">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
         </div>
         <div class="setting-group">
@@ -208,13 +211,47 @@
         <div class="setting-group">
           <div class="setting-row">
             <div class="setting-info">
+              <div class="setting-label">Show URLs in search results</div>
+              <div class="setting-desc">Display tab URLs when viewing search results.</div>
+            </div>
+            <label class="setting-switch">
+              <input id="setting-show-urls-in-search" type="checkbox">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="setting-group">
+          <div class="setting-row">
+            <div class="setting-info">
               <div class="setting-label">Auto-archive inactive sessions</div>
-              <div class="setting-desc">Automatically archive unnamed sessions after 14 days of inactivity.</div>
+              <div class="setting-desc">Automatically archive unnamed sessions after inactivity.</div>
             </div>
             <label class="setting-switch">
               <input id="setting-auto-archive-inactive" type="checkbox">
               <span class="slider"></span>
             </label>
+          </div>
+          <div id="setting-auto-archive-days-row" class="setting-row setting-row-numeric setting-row-child">
+            <div class="setting-info">
+              <div class="setting-label">Auto-archive after</div>
+              <div class="setting-desc">Days of inactivity before unnamed sessions are archived.</div>
+            </div>
+            <div class="setting-number-wrap">
+              <input id="setting-auto-archive-after-days" class="setting-number-input" type="number" min="1" max="90" step="1">
+              <span class="setting-number-unit">days</span>
+            </div>
+          </div>
+        </div>
+        <div class="setting-group">
+          <div class="setting-row setting-row-numeric">
+            <div class="setting-info">
+              <div class="setting-label">Keep duration</div>
+              <div class="setting-desc">Days before kept collections reappear in prune mode.</div>
+            </div>
+            <div class="setting-number-wrap">
+              <input id="setting-keep-duration-days" class="setting-number-input" type="number" min="1" max="30" step="1">
+              <span class="setting-number-unit">days</span>
+            </div>
           </div>
         </div>
         <div class="setting-group">

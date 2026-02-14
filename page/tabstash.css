@@ -1463,7 +1463,8 @@ body {
 }
 
 .modal-wide {
-  width: 480px;
+  width: 500px;
+  max-height: 80vh;
 }
 
 .modal-compact {
@@ -1677,6 +1678,77 @@ body {
 
 .setting-switch input:checked + .slider::before {
   transform: translateX(18px);
+}
+
+
+.setting-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.setting-shortcut-badge {
+  border: 1px solid #D0D0D0;
+  border-radius: 999px;
+  background: #F5F5F5;
+  color: #666;
+  font: 500 11px/1.1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  padding: 3px 7px;
+  white-space: nowrap;
+}
+
+.setting-row-numeric {
+  align-items: flex-start;
+}
+
+.setting-number-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.setting-number-input {
+  width: 60px;
+  padding: 5px 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font: 13px var(--font);
+  color: var(--text);
+  background: var(--bg);
+  text-align: right;
+  outline: none;
+}
+
+.setting-number-input:focus {
+  border-color: var(--accent);
+}
+
+.setting-number-unit {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.setting-row-child {
+  margin-top: -8px;
+  padding-top: 8px;
+  padding-left: 30px;
+  transition: max-height 150ms ease, opacity 150ms ease, margin 150ms ease, padding 150ms ease;
+  max-height: 90px;
+  opacity: 1;
+}
+
+.setting-row-child.is-hidden {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top: none;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .setting-action-btn {
