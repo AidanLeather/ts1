@@ -548,7 +548,9 @@ function createTabDragPreview(title, faviconSrc) {
 
 async function moveDraggedTabToCollection(targetCollectionId, targetIndex = null) {
   if (!dragState.tabId || !dragState.tabCollectionId || !targetCollectionId) return;
-  await WhyTabStorage.moveTab(dragState.tabId, targetCollectionId, targetIndex);
+  await WhyTabStorage.moveTab(dragState.tabId, targetCollectionId, targetIndex, {
+    touchCollections: !state.pruneMode.active,
+  });
   await loadData();
   render();
 }
