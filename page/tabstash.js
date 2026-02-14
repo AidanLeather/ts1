@@ -49,7 +49,6 @@ let dragState = {
 const RECENT_SEARCHES_KEY = 'recentSearches';
 let inlineEditSession = null;
 let inlineInputModalSession = null;
-let inlineInputModalReturnFocusEl = null;
 const COLLECTION_SORT_OPTIONS = [
   { value: 'newest', label: 'Newest', menuLabel: 'Newest first' },
   { value: 'oldest', label: 'Oldest', menuLabel: 'Oldest first' },
@@ -311,7 +310,7 @@ function bindEvents() {
   });
 }
 
-function getNamedCollections() {
+function getSavedCollections() {
   return state.collections
     .filter((c) => c.isUserNamed && !c.isPinned && !c.archived)
     .sort((a, b) => (b.lastInteractedAt || b.createdAt || 0) - (a.lastInteractedAt || a.createdAt || 0));
@@ -562,10 +561,10 @@ async function saveAllTabs() {
 
     const createdAt = Date.now();
     const result = await saveTabsToCollection(saveable, createdAt);
-    console.log(`[WhyTab] Named ${saveable.length} tabs as "${result.name}"`);
+    console.log(`[WhyTab] Saved ${saveable.length} tabs as "${result.name}"`);
     await loadData();
     render();
-    showToast(`Named ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
+    showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
   } catch (err) {
     console.error('[WhyTab] saveAllTabs error:', err);
     showToast('Error saving tabs');
@@ -587,7 +586,7 @@ async function saveAndCloseTabs() {
     await closeTabs(tabs, pageUrl);
     await loadData();
     render();
-    showToast(`Named ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
+    showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
   } catch (err) {
     console.error('[WhyTab] saveAndCloseTabs error:', err);
     showToast('Error saving tabs');
@@ -639,8 +638,8 @@ function render() {
   if (state.currentView === 'all') {
     renderAllView(content, empty);
     flushPendingSidebarNavigation();
-  } else if (state.currentView === 'named') {
-    renderNamedView(content, empty);
+  } else if (state.currentView === 'saved') {
+    renderSavedView(content, empty);
   } else if (state.currentView === 'archived') {
     renderArchivedView(content, empty);
   } else {
@@ -676,13 +675,13 @@ function renderAllView(content, empty) {
 }
 
 
-function renderNamedView(content, empty) {
-  const namedCollections = getNamedCollections();
+function renderSavedView(content, empty) {
+  const savedCollections = getSavedCollections();
   content.innerHTML = '';
-  if (!namedCollections.length) {
+  if (!savedCollections.length) {
     setEmptyState({
-      title: 'No named collections',
-      sub: 'Rename any collection to add it here.',
+      title: 'No saved collections',
+      sub: 'Rename any collection to save it here.',
       showDescription: false,
       showCta: false,
     });
@@ -691,8 +690,8 @@ function renderNamedView(content, empty) {
   }
 
   empty.classList.add('hidden');
-  content.appendChild(buildCollectionSectionLabel('Named'));
-  for (const col of namedCollections) {
+  content.appendChild(buildCollectionSectionLabel('Saved'));
+  for (const col of savedCollections) {
     content.appendChild(buildCollectionBlock(col, false, true));
   }
 }
@@ -1414,7 +1413,6 @@ function openInlineInputModal({ title, placeholder, confirmLabel, initialValue =
   inputEl.placeholder = placeholder || '';
   confirmEl.textContent = confirmLabel || 'Create';
   inputEl.value = initialValue;
-  inlineInputModalReturnFocusEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   modal.classList.remove('hidden');
   modal.setAttribute('aria-hidden', 'false');
   setTimeout(() => inputEl.focus(), 0);
@@ -1430,31 +1428,21 @@ function submitInlineInputModal() {
   const value = $('#inline-input-modal-input').value;
   const { resolve } = inlineInputModalSession;
   inlineInputModalSession = null;
-  const modal = $('#inline-input-modal');
-  const focused = modal.contains(document.activeElement) ? document.activeElement : null;
-  if (focused instanceof HTMLElement) focused.blur();
-  inlineInputModalReturnFocusEl?.focus();
-  inlineInputModalReturnFocusEl = null;
-  modal.classList.add('hidden');
-  modal.setAttribute('aria-hidden', 'true');
+  $('#inline-input-modal').classList.add('hidden');
+  $('#inline-input-modal').setAttribute('aria-hidden', 'true');
   resolve(value);
 }
 
 function closeInlineInputModal() {
-  const modal = $('#inline-input-modal');
-  const focused = modal.contains(document.activeElement) ? document.activeElement : null;
-  if (focused instanceof HTMLElement) focused.blur();
-  inlineInputModalReturnFocusEl?.focus();
-  inlineInputModalReturnFocusEl = null;
   if (!inlineInputModalSession) {
-    modal.classList.add('hidden');
-    modal.setAttribute('aria-hidden', 'true');
+    $('#inline-input-modal').classList.add('hidden');
+    $('#inline-input-modal').setAttribute('aria-hidden', 'true');
     return;
   }
   const { resolve } = inlineInputModalSession;
   inlineInputModalSession = null;
-  modal.classList.add('hidden');
-  modal.setAttribute('aria-hidden', 'true');
+  $('#inline-input-modal').classList.add('hidden');
+  $('#inline-input-modal').setAttribute('aria-hidden', 'true');
   resolve(null);
 }
 
@@ -1472,22 +1460,23 @@ function updateSidebar() {
   const systemList = $('#sidebar-system');
   if (systemList) {
     systemList.innerHTML = '';
-    const namedBtn = document.createElement('button');
-    namedBtn.className = 'nav-item nav-item-muted nav-item-named';
-    namedBtn.dataset.view = 'named';
-    namedBtn.textContent = 'Named';
-    namedBtn.classList.toggle('active', state.currentView === 'named');
-    namedBtn.addEventListener('click', () => {
-      state.currentView = 'named';
+    const savedBtn = document.createElement('button');
+    savedBtn.className = 'nav-item nav-item-muted nav-item-archived';
+    savedBtn.dataset.view = 'saved';
+    savedBtn.textContent = 'Saved';
+    savedBtn.classList.toggle('active', state.currentView === 'saved');
+    savedBtn.addEventListener('click', () => {
+      state.currentView = 'saved';
       state.searchQuery = '';
       $('#search').value = '';
       render();
     });
-    systemList.appendChild(namedBtn);
+    systemList.appendChild(savedBtn);
   }
 
-  const pinned = state.collections.filter((c) => c.isPinned && !c.archived);
-  const unpinned = state.collections.filter((c) => !c.isPinned && !c.archived);
+  const isUnsorted = (col) => col.name === 'Unsorted';
+  const pinned = state.collections.filter((c) => c.isPinned && !isUnsorted(c) && !c.archived);
+  const unpinned = state.collections.filter((c) => !c.isPinned && !isUnsorted(c) && !c.archived);
   const addSidebarSection = (labelText, items, emptyText) => {
     const label = document.createElement('div');
     label.className = 'sidebar-section-label';
@@ -1659,11 +1648,11 @@ function updateViewHeader() {
     title.textContent = 'All Tabs';
     count.textContent = total ? `(${total})` : '';
     actions.classList.toggle('hidden', state.collections.length === 0);
-  } else if (state.currentView === 'named') {
+  } else if (state.currentView === 'saved') {
     viewHeader.classList.remove('hidden');
-    const namedCount = getNamedCollections().length;
-    title.textContent = 'Named';
-    count.textContent = namedCount ? `(${namedCount})` : '';
+    const savedCount = getSavedCollections().length;
+    title.textContent = 'Saved';
+    count.textContent = savedCount ? `(${savedCount})` : '';
     actions.classList.toggle('hidden', state.collections.length === 0);
   } else if (state.currentView === 'archived') {
     viewHeader.classList.remove('hidden');
@@ -1773,7 +1762,7 @@ function openSettings() {
       await WhyTabStorage.saveSettings({ ...state.settings, showItemUrls: el.checked });
       state.settings = await WhyTabStorage.getSettings();
       render();
-      showToast('Named');
+      showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
     }
@@ -1783,7 +1772,7 @@ function openSettings() {
     try {
       await WhyTabStorage.saveSettings({ ...state.settings, useContextualAutoTitles: el.checked });
       state.settings = await WhyTabStorage.getSettings();
-      showToast('Named');
+      showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
     }
@@ -1794,7 +1783,7 @@ function openSettings() {
       await WhyTabStorage.saveSettings({ ...state.settings, showSortControl: el.checked });
       state.settings = await WhyTabStorage.getSettings();
       render();
-      showToast('Named');
+      showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
     }
@@ -1810,7 +1799,7 @@ function openSettings() {
         await loadData();
       }
       render();
-      showToast('Named');
+      showToast('Saved');
     } catch (err) {
       console.error('[WhyTab] save settings error:', err);
     }
