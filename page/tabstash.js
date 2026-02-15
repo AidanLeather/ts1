@@ -56,6 +56,7 @@ let state = {
     lastFeaturedCollectionId: null,
     completionReachedAt: 0,
     lastRenderedCounts: null,
+    startedAt: 0,
   },
 };
 
@@ -89,6 +90,9 @@ const NUDGE_STORAGE_KEYS = {
   onboarding: 'hasCompletedOnboarding',
   openCount: 'openCount',
 };
+const SEARCH_LOG_DEBOUNCE_MS = 500;
+const sessionSearchQueries = new Set();
+let searchLogTimer = null;
 let inlineEditSession = null;
 let inlineInputModalSession = null;
 const COLLECTION_SORT_OPTIONS = [
@@ -143,6 +147,7 @@ async function setAccordionState(nextState) {
 
 // ── Init ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  await WhyTabActivity?.maintainActivityLog?.();
   await loadData();
   await loadRecentSearches();
   await loadPinTipPreference();
@@ -328,6 +333,21 @@ async function openTabFromWhyTab(url, { active = true } = {}) {
   return chrome.tabs.create(createOptions);
 }
 
+function scheduleSearchLog(query) {
+  if (searchLogTimer) {
+    clearTimeout(searchLogTimer);
+    searchLogTimer = null;
+  }
+  const trimmed = String(query || '').trim();
+  if (!trimmed) return;
+  searchLogTimer = setTimeout(() => {
+    const normalized = trimmed.toLowerCase();
+    if (sessionSearchQueries.has(normalized)) return;
+    sessionSearchQueries.add(normalized);
+    WhyTabActivity?.logActivity?.('search_performed', { query: trimmed });
+  }, SEARCH_LOG_DEBOUNCE_MS);
+}
+
 // ── Real-time storage listener ─────────────────────────
 function bindStorageListener() {
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -384,6 +404,7 @@ function bindEvents() {
     }
     render();
     updateSearchAffordances();
+    scheduleSearchLog(state.searchQuery);
   });
   $('#search-clear-btn')?.addEventListener('click', () => {
     state.searchQuery = '';
@@ -625,9 +646,17 @@ function enterPruneMode() {
   state.pruneMode.completionReachedAt = 0;
   state.pruneMode.lastRenderedCounts = null;
   state.pruneMode.exitDisplayUntil = 0;
+  state.pruneMode.startedAt = Date.now();
 }
 
 function exitPruneMode() {
+  const durationSeconds = Math.max(0, Math.round((Date.now() - (state.pruneMode.startedAt || Date.now())) / 1000));
+  WhyTabActivity?.logActivity?.('prune_session', {
+    tabsArchived: state.pruneMode.archivedCount,
+    tabsDeleted: state.pruneMode.deletedCount,
+    tabsKept: state.pruneMode.keptCount,
+    duration: durationSeconds,
+  });
   state.pruneMode.active = false;
   state.pruneMode.unpinnedOrderIds = [];
   state.pruneMode.keptCollectionIds = {};
@@ -636,6 +665,7 @@ function exitPruneMode() {
   state.pruneMode.completionReachedAt = 0;
   state.pruneMode.lastRenderedCounts = null;
   state.pruneMode.exitDisplayUntil = Date.now() + PRUNE_TALLY_HOLD_MS;
+  state.pruneMode.startedAt = 0;
   renderPruneTally();
   scrollMainToTop(PRUNE_EXIT_SCROLL_MS);
   setTimeout(() => {
@@ -1024,6 +1054,7 @@ async function saveAndCloseTabs() {
 
     const createdAt = Date.now();
     const result = await saveTabsToCollection(saveable, createdAt);
+    WhyTabActivity?.logActivity?.('tabs_saved', { count: saveable.length });
     const pageUrl = chrome.runtime.getURL('page/tabstash.html');
     await closeTabs(tabs, pageUrl);
     await loadData();
@@ -1857,6 +1888,7 @@ function buildTabRow(tab, collectionId, options = {}) {
   row.querySelector('.tab-title').addEventListener('click', async () => {
     if (dragState.suppressTabClickId === tab.id) return;
     await openTabFromWhyTab(tab.url).catch((err) => console.warn('[WhyTab] open error:', err));
+    WhyTabActivity?.logActivity?.('tab_opened', { tabId: tab.id, tabTitle: tab.title, tabUrl: tab.url, collectionId });
     WhyTabStorage.logAction('open', { tabId: tab.id });
     WhyTabStorage.markCollectionInteracted(collectionId);
   });
@@ -1864,6 +1896,7 @@ function buildTabRow(tab, collectionId, options = {}) {
   row.querySelector('.open-btn').addEventListener('click', async () => {
     if (dragState.suppressTabClickId === tab.id) return;
     await openTabFromWhyTab(tab.url).catch((err) => console.warn('[WhyTab] open error:', err));
+    WhyTabActivity?.logActivity?.('tab_opened', { tabId: tab.id, tabTitle: tab.title, tabUrl: tab.url, collectionId });
     WhyTabStorage.logAction('open', { tabId: tab.id });
     WhyTabStorage.markCollectionInteracted(collectionId);
   });
