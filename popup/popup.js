@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         createdAt,
         autoTitleType: generated.autoTitleType,
       });
+      WhyTabActivity?.logActivity?.('tabs_saved', { count: saveable.length });
       console.log(`[WhyTab popup] Saved collection "${name}" (${col.id}), ${saveable.length} tabs`);
 
       await closeTabs(tabs.filter((t) => !t.url?.startsWith(pageUrl)));
@@ -105,6 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
+      WhyTabActivity?.logActivity?.('tabs_saved', { count: saveable.length });
       await closeTabs(leftTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the left`);
     })
@@ -129,6 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         createdAt,
         autoTitleType: 'timeOfDay',
       });
+      WhyTabActivity?.logActivity?.('tabs_saved', { count: saveable.length });
       await closeTabs(rightTabs);
       showStatus(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''} from the right`);
     })
