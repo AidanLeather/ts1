@@ -1803,6 +1803,34 @@ body {
   overflow-y: auto;
 }
 
+/*
+  Settings modal DOM hierarchy audit (height/max-height/overflow only):
+  1) #settings-overlay.modal (outer overlay): no height/max-height; no overflow hidden.
+  2) #settings-overlay .modal-backdrop: no height/max-height; no overflow hidden.
+  3) #settings-overlay .modal-dialog.modal-wide (modal container):
+     - inherited from .modal-dialog: max-height: 70vh; overflow: hidden
+     - inherited from .modal-wide: height: min(600px, 80vh); max-height: none
+  4) #settings-overlay .modal-header (fixed header): no height/max-height; no overflow hidden.
+  5) #settings-overlay .modal-body.settings-body (scroll region): overflow-y: auto
+*/
+#settings-overlay .modal-dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(640px, 85vh);
+  max-height: none;
+  overflow: visible;
+}
+
+#settings-overlay .modal-header {
+  flex-shrink: 0;
+}
+
+#settings-overlay .modal-body.settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .move-item {
   padding: 10px 12px;
   border: 1px solid var(--border);
