@@ -15,6 +15,8 @@
 
 importScripts('../lib/time.js', '../lib/storage.js');
 
+const WONDER_CUSTOM_FAVICON = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PGNpcmNsZSBjeD0iOCIgY3k9IjgiIHI9IjgiIGZpbGw9IiM0QjNGOEMiLz48L3N2Zz4=';
+
 // ── Install / update ───────────────────────────────────
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log(`[WhyTab SW] onInstalled: ${details.reason}`);
@@ -59,8 +61,8 @@ async function ensureStarterCollections() {
         url: 'https://fs.blog/david-foster-wallace-this-is-water/',
       },
       {
-        title: 'Berkshire Hathaway 2022 Annual Report — Warren Buffett',
-        url: 'https://www.berkshirehathaway.com/2022ar/linksannual22.html',
+        title: 'Small Tech — 37signals',
+        url: 'https://37signals.com/20',
       },
     ],
     { isPinned: true, isUserNamed: true },
@@ -69,9 +71,14 @@ async function ensureStarterCollections() {
   await WhyTabStorage.addCollection(
     'Inspiration',
     [
-      { title: 'Wonder', url: 'https://www.wondercard.co' },
+      {
+        title: 'Wonder',
+        url: 'https://www.wondercard.co',
+        customFavicon: WONDER_CUSTOM_FAVICON,
+      },
       { title: "People's Graphic Design Archive", url: 'https://peoplesgdarchive.org/' },
       { title: 'Deck Gallery', url: 'https://www.deck.gallery/' },
+      { title: 'Fonts In Use', url: 'https://fontsinuse.com/' },
     ],
     { isPinned: true, isUserNamed: true },
   );

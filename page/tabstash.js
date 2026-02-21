@@ -1844,7 +1844,7 @@ function buildTabRow(tab, collectionId, options = {}) {
 
   const tags = tab.tags || [];
 
-  const icon = faviconUrl(tab.url);
+  const icon = tab.customFavicon || faviconUrl(tab.url);
   const favicon = icon
     ? `<img class="tab-favicon" src="${escAttr(icon)}" alt="" loading="lazy">`
     : '<div class="tab-favicon-placeholder"></div>';
