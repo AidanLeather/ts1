@@ -1097,6 +1097,10 @@ function render() {
   const content = $('#content');
   const empty = $('#empty-state');
   const filterBar = $('#filter-bar');
+  const toggleEmptyState = (showEmpty) => {
+    empty.classList.toggle('hidden', !showEmpty);
+    content.classList.toggle('hidden', showEmpty);
+  };
 
   // Search mode
   if (state.searchQuery.trim()) {
@@ -1114,9 +1118,9 @@ function render() {
         title: 'No results',
         sub: `Nothing matching "${state.searchQuery}"`,
       });
-      empty.classList.remove('hidden');
+      toggleEmptyState(true);
     } else {
-      empty.classList.add('hidden');
+      toggleEmptyState(false);
       content.innerHTML = '';
       renderSearchResults(content, results);
     }
@@ -1133,14 +1137,14 @@ function render() {
   });
 
   if (state.currentView === 'all') {
-    renderAllView(content, empty);
+    renderAllView(content, toggleEmptyState);
     flushPendingSidebarNavigation();
   } else if (state.currentView === 'saved') {
-    renderSavedView(content, empty);
+    renderSavedView(content, toggleEmptyState);
   } else if (state.currentView === 'archived') {
-    renderArchivedView(content, empty);
+    renderArchivedView(content, toggleEmptyState);
   } else {
-    renderCollectionView(content, empty, state.currentView);
+    renderCollectionView(content, toggleEmptyState, state.currentView);
   }
 
   requestAnimationFrame(() => {
@@ -1148,7 +1152,7 @@ function render() {
   });
 }
 
-function renderAllView(content, empty) {
+function renderAllView(content, toggleEmptyState) {
   const activeCollections = state.collections.filter((c) => !c.archived);
   if (activeCollections.length === 0) {
     content.innerHTML = '';
@@ -1160,10 +1164,10 @@ function renderAllView(content, empty) {
         showCta: false,
       });
     }
-    empty.classList.remove('hidden');
+    toggleEmptyState(true);
     return;
   }
-  empty.classList.add('hidden');
+  toggleEmptyState(false);
   content.innerHTML = '';
   const pinned = activeCollections.filter((c) => c.isPinned);
   const unpinned = activeCollections.filter((c) => !c.isPinned);
@@ -1184,7 +1188,7 @@ function renderAllView(content, empty) {
 }
 
 
-function renderSavedView(content, empty) {
+function renderSavedView(content, toggleEmptyState) {
   const savedCollections = getSavedCollections();
   content.innerHTML = '';
   if (!savedCollections.length) {
@@ -1194,27 +1198,27 @@ function renderSavedView(content, empty) {
       showDescription: false,
       showCta: false,
     });
-    empty.classList.remove('hidden');
+    toggleEmptyState(true);
     return;
   }
 
-  empty.classList.add('hidden');
+  toggleEmptyState(false);
   content.appendChild(buildCollectionSectionLabel('Named'));
   for (const col of savedCollections) {
     content.appendChild(buildCollectionBlock(col, false, true));
   }
 }
 
-function renderArchivedView(content, empty) {
+function renderArchivedView(content, toggleEmptyState) {
   const archivedCollections = state.collections.filter((c) => c.archived);
   content.innerHTML = '';
   if (!archivedCollections.length) {
     setEmptyState({ title: 'No archived collections', sub: '' });
-    empty.classList.remove('hidden');
+    toggleEmptyState(true);
     return;
   }
 
-  empty.classList.add('hidden');
+  toggleEmptyState(false);
   for (const col of archivedCollections) {
     content.appendChild(buildCollectionBlock(col, false, true));
   }
@@ -1243,12 +1247,12 @@ async function reorderCollectionsWithinGroup(isPinned, sourceId, targetId) {
   render();
 }
 
-function renderCollectionView(content, empty, colId) {
+function renderCollectionView(content, toggleEmptyState, colId) {
   const col = state.collections.find((c) => c.id === colId);
   if (!col || col.archived) {
     content.innerHTML = '';
     setEmptyState({ title: 'Collection not found', sub: '' });
-    empty.classList.remove('hidden');
+    toggleEmptyState(true);
     return;
   }
 
@@ -1259,11 +1263,11 @@ function renderCollectionView(content, empty, colId) {
     wrapper.appendChild(buildAddTabForm(col.id));
     content.appendChild(wrapper);
     setEmptyState({ title: 'Empty collection', sub: 'Add tabs manually or move tabs here.' });
-    empty.classList.remove('hidden');
+    toggleEmptyState(true);
     return;
   }
 
-  empty.classList.add('hidden');
+  toggleEmptyState(false);
   content.innerHTML = '';
   content.appendChild(buildCollectionBlock(col, false, true));
 }
