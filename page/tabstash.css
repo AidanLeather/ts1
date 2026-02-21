@@ -84,7 +84,7 @@ body {
 }
 
 .logo {
-  margin: 0;
+  margin-top: 4px;
   font-family: "Lora", Georgia, serif;
   font-size: 18px;
   font-weight: 600;
