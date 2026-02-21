@@ -1120,8 +1120,10 @@ function render() {
   updateSearchAffordances();
 
   const content = $('#content');
+  const contentList = $('#content-list');
   const empty = $('#empty-state');
   const filterBar = $('#filter-bar');
+  if (!content || !contentList || !empty || !filterBar) return;
   const toggleEmptyState = (showEmpty) => {
     empty.classList.toggle('hidden', !showEmpty);
     content.classList.toggle('hidden', showEmpty);
@@ -1138,7 +1140,7 @@ function render() {
     filterBar.classList.remove('hidden');
 
     if (count === 0) {
-      content.innerHTML = '';
+      contentList.innerHTML = '';
       setEmptyState({
         title: 'No results',
         sub: `Nothing matching "${state.searchQuery}"`,
@@ -1146,8 +1148,8 @@ function render() {
       toggleEmptyState(true);
     } else {
       toggleEmptyState(false);
-      content.innerHTML = '';
-      renderSearchResults(content, results);
+      contentList.innerHTML = '';
+      renderSearchResults(contentList, results);
     }
     return;
   }
@@ -1162,14 +1164,14 @@ function render() {
   });
 
   if (state.currentView === 'all') {
-    renderAllView(content, toggleEmptyState);
+    renderAllView(contentList, toggleEmptyState);
     flushPendingSidebarNavigation();
   } else if (state.currentView === 'saved') {
-    renderSavedView(content, toggleEmptyState);
+    renderSavedView(contentList, toggleEmptyState);
   } else if (state.currentView === 'archived') {
-    renderArchivedView(content, toggleEmptyState);
+    renderArchivedView(contentList, toggleEmptyState);
   } else {
-    renderCollectionView(content, toggleEmptyState, state.currentView);
+    renderCollectionView(contentList, toggleEmptyState, state.currentView);
   }
 
   requestAnimationFrame(() => {
