@@ -1992,6 +1992,8 @@ body {
 
 .setting-row-child {
   padding-top: 12px;
+  padding-bottom: 0;
+  margin-bottom: 0;
 }
 
 .setting-row + .setting-row.setting-row-child {
