@@ -19,6 +19,14 @@ importScripts('../lib/time.js', '../lib/storage.js');
 chrome.runtime.onInstalled.addListener(async (details) => {
   console.log(`[WhyTab SW] onInstalled: ${details.reason}`);
 
+  if (details.reason === 'install') {
+    await chrome.tabs.create({
+      url: chrome.runtime.getURL('whytab.html'),
+      pinned: true,
+      index: 0,
+    });
+  }
+
   // Rebuild URL index on install/update (ensures consistency)
   await WhyTabStorage.rebuildUrlIndex();
 
