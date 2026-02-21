@@ -181,10 +181,14 @@ body {
   padding: 0 8px 6px;
 }
 
+.sidebar-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .sidebar-collections {
   padding: 4px 8px 10px;
-  flex: 1;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
