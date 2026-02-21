@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Lora:wght@500;600&family=Outfit:wght@100..900&display=swap");
 
 /* ── Reset ────────────────────────────────────────────── */
 *,
@@ -85,14 +85,12 @@ body {
 
 .logo {
   margin: 0;
-  line-height: 0;
-}
-
-.logo img {
-  width: 64px;
-  height: auto;
-  display: block;
-  opacity: 0.82;
+  font-family: "Lora", Georgia, serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.2px;
+  color: var(--text);
 }
 
 .sidebar-nav {
