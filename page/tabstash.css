@@ -702,7 +702,7 @@ body {
 }
 
 .contextual-nudge-banner {
-  margin: 0 0 10px;
+  margin: 16px 0 10px;
   padding: 8px 16px;
   border-radius: var(--radius-md);
   background: #E8F0EC;
