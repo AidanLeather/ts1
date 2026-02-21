@@ -1691,7 +1691,8 @@ body {
 
 .modal-wide {
   width: 500px;
-  max-height: 80vh;
+  height: min(600px, 80vh);
+  max-height: none;
 }
 
 .modal-compact {
@@ -1769,6 +1770,7 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 18px 20px 14px;
+  flex-shrink: 0;
 }
 .modal-header h3 {
   font-size: 15px;
@@ -1796,6 +1798,8 @@ body {
 
 .modal-body {
   padding: 0 20px 20px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
 }
 
