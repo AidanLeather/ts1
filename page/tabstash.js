@@ -516,6 +516,11 @@ function bindEvents() {
   // Command palette
   $('#command-palette .modal-backdrop').addEventListener('click', closePalette);
 
+  // Help panel
+  $('#help-fab')?.addEventListener('click', openHelpPanel);
+  $('#help-close-btn')?.addEventListener('click', closeHelpPanel);
+  $('#help-backdrop')?.addEventListener('click', closeHelpPanel);
+
   // Filter clear
   $('#filter-clear').addEventListener('click', () => {
     state.searchQuery = '';
@@ -583,6 +588,25 @@ function bindEvents() {
       closeSearchPanel();
     }
   });
+}
+
+
+function isHelpPanelOpen() {
+  return $('#help-overlay')?.classList.contains('open');
+}
+
+function openHelpPanel() {
+  const overlay = $('#help-overlay');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden', 'false');
+}
+
+function closeHelpPanel() {
+  const overlay = $('#help-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden', 'true');
 }
 
 function getSavedCollections() {
@@ -963,6 +987,7 @@ function bindKeyboard() {
 
     if (e.key === 'Escape') {
       if (paletteOpen) { closePalette(); return; }
+      if (isHelpPanelOpen()) { closeHelpPanel(); return; }
       if (!$('#settings-overlay').classList.contains('hidden')) { closeSettings(); return; }
       if (!$('#move-modal').classList.contains('hidden')) { closeMoveModal(); return; }
       if (state.searchQuery) {

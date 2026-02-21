@@ -143,6 +143,85 @@
     </main>
   </div>
 
+  <button id="help-fab" class="help-fab" type="button" aria-label="Open help panel">?</button>
+
+  <div id="help-overlay" class="help-overlay" aria-hidden="true">
+    <button id="help-backdrop" class="help-backdrop" type="button" aria-label="Close help panel"></button>
+    <aside id="help-panel" class="help-panel" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <header class="help-panel-header">
+        <h3 id="help-title">Help</h3>
+        <button id="help-close-btn" class="help-close-btn" type="button" aria-label="Close help panel">&times;</button>
+      </header>
+      <div class="help-panel-body">
+        <section class="help-section">
+          <h4>Getting started</h4>
+          <p>WhyTab turns your open tabs into saved collections—so you can close your browser without losing your work, research, or reading list.</p>
+          <p>Click Save &amp; close tabs in the sidebar to capture everything open in your current window. Your tabs close, a new collection appears in WhyTab, and you can restore any of them whenever you're ready. Open tabs one at a time by clicking them, or restore the whole collection at once using the arrow icon.</p>
+          <p>To open WhyTab from anywhere, click the WhyTab icon in your browser toolbar. Press ⌘K to open the command palette for quick access to any action without leaving your keyboard.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Collections</h4>
+          <p>A collection is a saved group of tabs. Every time you save, WhyTab creates one automatically with a smart title based on what you were doing—"Mostly GitHub—Friday night" or "React, hooks—Feb 13 evening" rather than a bare timestamp.</p>
+          <p>You can rename any collection by hovering over it and clicking the edit icon. Click inside the name field to position your cursor or highlight text, press Enter to save, or Escape to cancel. Renaming a collection promotes it to named status, which affects how WhyTab treats it over time.</p>
+          <p>Collections are ordered chronologically, newest first.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Pinned collections</h4>
+          <p>Pin the collections you return to regularly—a reading list, an ongoing project, a set of design references. Pinned collections always sit at the top of the sidebar and the top of the main view, above your chronological stream.</p>
+          <p>To pin: hover over a collection and click the bookmark icon, or drag it from the Collections list into the Pinned section in the sidebar. To unpin: click the bookmark icon again, or drag it back out.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Named collections</h4>
+          <p>The Named view in the sidebar shows only collections you've deliberately named—filtering out auto-generated session captures. It's the "things I actually care about" view. Pinned collections appear here too, since pinned and named aren't mutually exclusive.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Archiving</h4>
+          <p>Archive a collection to remove it from your main view without deleting it. Archived content stays searchable and can be restored at any time. You can archive individual tabs within a collection too—not just whole collections.</p>
+          <p>Auto-archive: unnamed collections that haven't been meaningfully interacted with (no tabs opened, no renaming) for 14 days are automatically archived. Named collections are never auto-archived. You can adjust the threshold or turn this off entirely in Settings.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Finding tabs</h4>
+          <p>The search bar searches across all tab titles, URLs, and collection names—so you can find something even if you can't remember which collection it's in. Press / to focus the search bar without reaching for the mouse.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Prune mode</h4>
+          <p>Prune is a focused triage session for clearing out collections you no longer need. Click Prune in the top bar to enter it.</p>
+          <p>In prune mode, your collections reorder by staleness—oldest and least-active first. Work through them one at a time: Keep to leave a collection untouched for 7 days, Archive to move it out of view, or Delete to remove it permanently. Each collection shows when it was last active, so you can make quick, confident decisions.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Organising</h4>
+          <p>Drag and drop—drag collections to reorder them, or drag from the Collections list into the Pinned section in the sidebar to pin. You can also drag from the main content area into the sidebar.</p>
+          <p>Collapse &amp; expand—use Collapse all and Expand all in the top bar to control how collections are displayed.</p>
+          <p>Sort—if enabled in Settings, a sort control lets you order collections by newest, oldest, or alphabetically. Sort applies to Collections only—Pinned collections maintain your custom order.</p>
+        </section>
+
+        <section class="help-section">
+          <h4>Keyboard shortcuts</h4>
+          <div class="help-shortcut-table" role="table" aria-label="Keyboard shortcuts">
+            <div class="help-shortcut-row" role="row"><span class="help-shortcut-pill" role="cell">⌘K</span><span role="cell">Open command palette</span></div>
+            <div class="help-shortcut-row" role="row"><span class="help-shortcut-pill" role="cell">⌘S</span><span role="cell">Save &amp; close tabs</span></div>
+            <div class="help-shortcut-row" role="row"><span class="help-shortcut-pill" role="cell">⌘E</span><span role="cell">New collection</span></div>
+            <div class="help-shortcut-row" role="row"><span class="help-shortcut-pill" role="cell">⌘P</span><span role="cell">Enter/exit prune mode</span></div>
+            <div class="help-shortcut-row" role="row"><span class="help-shortcut-pill" role="cell">⌘U</span><span role="cell">Toggle tab URLs</span></div>
+            <div class="help-shortcut-row" role="row"><span class="help-shortcut-pill" role="cell">/</span><span role="cell">Focus search bar</span></div>
+          </div>
+        </section>
+
+        <section class="help-section">
+          <h4>Settings</h4>
+          <p>Open Settings from the sidebar to configure: auto-archive threshold (default 14 days), Keep duration in prune mode (default 7 days), context-aware auto titles, whether URLs show by default in search results, and import/export your data as JSON. The full keyboard shortcuts reference is also available in Settings.</p>
+        </section>
+      </div>
+    </aside>
+  </div>
+
   <!-- Move modal -->
   <div id="move-modal" class="modal hidden">
     <div class="modal-backdrop"></div>
