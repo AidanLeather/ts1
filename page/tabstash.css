@@ -74,6 +74,7 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   flex-shrink: 0;
   transition: opacity var(--transition);
 }
@@ -186,6 +187,8 @@ body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
+  align-content: flex-start;
   gap: 4px;
 }
 
