@@ -2194,7 +2194,6 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 }
 .sidebar-col-item {
   padding: 8px 12px 8px 8px;
-  margin-bottom: 12px;
 }
 .sidebar-col-item.day-boundary {
   margin-bottom: 16px;
