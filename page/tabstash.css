@@ -1991,13 +1991,7 @@ body {
 }
 
 .setting-row-child {
-  padding-top: 8px;
-  padding-left: 30px;
-  overflow: hidden;
-  transition: max-height 150ms ease, opacity 150ms ease, transform 150ms ease, padding 150ms ease;
-  max-height: 120px;
-  opacity: 1;
-  transform: translateY(0);
+  padding-top: 12px;
 }
 
 .setting-row + .setting-row.setting-row-child {
@@ -2005,14 +1999,7 @@ body {
 }
 
 .setting-row-child.is-hidden {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-6px);
-  padding-top: 0;
-  padding-bottom: 0;
-  border-top: none;
-  overflow: hidden;
-  pointer-events: none;
+  display: none;
 }
 
 .setting-action-btn {
