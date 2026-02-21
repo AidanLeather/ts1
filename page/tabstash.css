@@ -84,21 +84,15 @@ body {
 }
 
 .logo {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.3px;
-  color: var(--text);
+  margin: 0;
+  line-height: 0;
 }
-.logo::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #4E7A65;
-  flex-shrink: 0;
+
+.logo img {
+  width: 92px;
+  height: auto;
+  display: block;
+  opacity: 0.82;
 }
 
 .sidebar-nav {
