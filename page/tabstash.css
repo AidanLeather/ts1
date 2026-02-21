@@ -2191,7 +2191,7 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 .sidebar-save-link { margin-bottom: 32px; }
 .sidebar-divider { display: none; }
 .sidebar-collections { padding: 0 8px 12px; gap: 0; }
-.sidebar-section-label { margin-bottom: 12px; }
+.sidebar-section-label { margin-bottom: 8px; }
 .sidebar-section-label + .sidebar-section-label { margin-top: 24px; }
 .sidebar-section-label--collections { margin-top: 20px; }
 
