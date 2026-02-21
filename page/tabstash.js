@@ -1536,6 +1536,7 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
         dragState.collectionPinned = null;
         dragState.source = null;
         $$('.collection-block').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
+        $$('.sidebar-section-dropzone').forEach((el) => el.classList.remove('drag-target'));
       });
     }
     header.addEventListener('dragover', (e) => {
@@ -2133,15 +2134,55 @@ function updateSidebar() {
 
   const pinned = state.collections.filter((c) => c.isPinned && !c.archived);
   const unpinned = state.collections.filter((c) => !c.isPinned && !c.archived);
-  const addSidebarSection = (labelText, items, emptyText) => {
+  const addSidebarSection = (labelText, items, emptyText, { pinDropTarget = false } = {}) => {
+    const section = document.createElement('div');
+    section.className = `sidebar-section${pinDropTarget ? ' sidebar-section-dropzone' : ''}`;
+
     const label = document.createElement('div');
     label.className = 'sidebar-section-label';
     label.textContent = labelText;
-    list.appendChild(label);
+    const body = document.createElement('div');
+    body.className = 'sidebar-section-body';
+
+    if (pinDropTarget) {
+      const canDropCollectionIntoPinned = () => dragState.type === 'collection'
+        && Boolean(dragState.collectionId)
+        && dragState.collectionPinned === false;
+
+      section.addEventListener('dragover', (e) => {
+        if (!canDropCollectionIntoPinned()) return;
+        e.preventDefault();
+        section.classList.add('drag-target');
+      });
+
+      section.addEventListener('dragleave', (e) => {
+        const bounds = section.getBoundingClientRect();
+        const isStillInside = e.clientX >= bounds.left
+          && e.clientX <= bounds.right
+          && e.clientY >= bounds.top
+          && e.clientY <= bounds.bottom;
+        if (!isStillInside) {
+          section.classList.remove('drag-target');
+        }
+      });
+
+      section.addEventListener('drop', async (e) => {
+        if (!canDropCollectionIntoPinned()) return;
+        e.preventDefault();
+        section.classList.remove('drag-target');
+        await WhyTabStorage.togglePin(dragState.collectionId);
+        await loadData();
+        render();
+      });
+    }
+
+    section.appendChild(label);
+    section.appendChild(body);
+    list.appendChild(section);
 
     if (items.length > 0) {
       items.forEach((col, index) => {
-        list.appendChild(buildSidebarItem(col, {
+        body.appendChild(buildSidebarItem(col, {
           dayBoundary: false,
           sectionStart: index === 0,
         }));
@@ -2152,10 +2193,10 @@ function updateSidebar() {
     const placeholder = document.createElement('div');
     placeholder.className = 'sidebar-section-placeholder';
     placeholder.textContent = emptyText;
-    list.appendChild(placeholder);
+    body.appendChild(placeholder);
   };
 
-  addSidebarSection('Pinned', pinned, 'No pinned sessions yet.');
+  addSidebarSection('Pinned', pinned, 'No pinned sessions yet.', { pinDropTarget: true });
 
   if (unpinned.length > 0) {
     const label = document.createElement('div');
@@ -2227,6 +2268,7 @@ function buildSidebarItem(col, { dayBoundary = false, sectionStart = false } = {
     dragState.collectionPinned = null;
     dragState.source = null;
     $$('.sidebar-col-item').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
+    $$('.sidebar-section-dropzone').forEach((el) => el.classList.remove('drag-target'));
   });
   btn.addEventListener('dragover', (e) => {
     if (dragState.type === 'collection') {

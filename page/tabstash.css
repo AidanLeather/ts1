@@ -181,6 +181,15 @@ body {
   padding: 0 8px 6px;
 }
 
+.sidebar-section {
+  border-radius: var(--radius-md);
+  transition: background-color 150ms ease-out;
+}
+
+.sidebar-section-body {
+  min-height: 10px;
+}
+
 .sidebar-main {
   flex: 1;
   display: flex;
@@ -2380,6 +2389,19 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
   padding-top: 10px;
   padding-bottom: 10px;
   transition: background-color 150ms ease-out, padding 150ms ease-out;
+}
+
+.sidebar-section-dropzone.drag-target .sidebar-section-label,
+.sidebar-section-dropzone.drag-target .sidebar-section-body {
+  background: var(--color-accent-light);
+}
+
+.sidebar-section-dropzone.drag-target .sidebar-section-label {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.sidebar-section-dropzone.drag-target .sidebar-section-body {
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 
 .collection-block.is-dragging,
