@@ -92,6 +92,8 @@ const NUDGE_STORAGE_KEYS = {
   openCount: 'openCount',
 };
 const SEARCH_LOG_DEBOUNCE_MS = 500;
+const DAILY_BACKUP_DATE_KEY = 'lastBackupDate';
+const DAILY_BACKUP_FILENAME = 'whytab-backup.json';
 const sessionSearchQueries = new Set();
 let searchLogTimer = null;
 let inlineEditSession = null;
@@ -146,10 +148,50 @@ async function setAccordionState(nextState) {
   }
 }
 
+
+function getLocalDateStamp(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+async function createExportDataUrl() {
+  const data = await WhyTabStorage.getAll();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  return URL.createObjectURL(blob);
+}
+
+async function maybeRunDailyAutomaticBackup(settings = state.settings) {
+  if (!settings?.dailyAutomaticBackup) return;
+
+  const todayStamp = getLocalDateStamp();
+  try {
+    const stored = await chrome.storage.local.get(DAILY_BACKUP_DATE_KEY);
+    if (stored?.[DAILY_BACKUP_DATE_KEY] === todayStamp) return;
+
+    const dataUrl = await createExportDataUrl();
+    try {
+      await chrome.downloads.download({
+        url: dataUrl,
+        filename: DAILY_BACKUP_FILENAME,
+        conflictAction: 'overwrite',
+        saveAs: false,
+      });
+      await chrome.storage.local.set({ [DAILY_BACKUP_DATE_KEY]: todayStamp });
+    } finally {
+      URL.revokeObjectURL(dataUrl);
+    }
+  } catch (err) {
+    console.error('[WhyTab] daily backup error:', err);
+  }
+}
+
 // ── Init ───────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   await WhyTabActivity?.maintainActivityLog?.();
   await loadData();
+  await maybeRunDailyAutomaticBackup(state.settings);
   await loadRecentSearches();
   await loadPinTipPreference();
   await loadNudgeState();
@@ -2579,6 +2621,7 @@ function openSettings() {
   $('#setting-auto-archive-inactive').checked = s.autoArchiveInactiveSessions !== false;
   $('#setting-auto-archive-after-days').value = String(getAutoArchiveAfterDays(s));
   $('#setting-keep-duration-days').value = String(getKeepDurationDays(s));
+  $('#setting-daily-automatic-backup').checked = Boolean(s.dailyAutomaticBackup);
   syncAutoArchiveDaysVisibility();
   resetImportUi();
 
@@ -2665,6 +2708,17 @@ function openSettings() {
     }
   }, 'change');
 
+
+  replaceWithClone('#setting-daily-automatic-backup', async (el) => {
+    try {
+      await WhyTabStorage.saveSettings({ ...state.settings, dailyAutomaticBackup: el.checked });
+      state.settings = await WhyTabStorage.getSettings();
+      showToast('Saved');
+    } catch (err) {
+      console.error('[WhyTab] save settings error:', err);
+    }
+  }, 'change');
+
   replaceWithClone('#setting-import-btn', () => {
     $('#setting-import-file')?.click();
   }, 'click');
@@ -2717,18 +2771,18 @@ function openSettings() {
   }, 'click');
 
   replaceWithClone('#setting-export-btn', async () => {
+    let dataUrl = null;
     try {
-      const data = await WhyTabStorage.getAll();
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
+      dataUrl = await createExportDataUrl();
       const a = document.createElement('a');
-      a.href = url;
+      a.href = dataUrl;
       a.download = `tabstash-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
-      URL.revokeObjectURL(url);
       showToast('Exported');
     } catch (err) {
       console.error('[WhyTab] export error:', err);
+    } finally {
+      if (dataUrl) URL.revokeObjectURL(dataUrl);
     }
   }, 'click');
 
