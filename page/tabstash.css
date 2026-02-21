@@ -2181,16 +2181,19 @@ body { font-family: var(--font-sans); color: var(--text-primary); }
 
 .nav-item,
 .sidebar-col-item {
-  height: 32px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
   font-size: var(--text-sm);
   font-weight: var(--font-medium);
   color: var(--text-primary);
   transition: background-color 150ms ease;
   cursor: pointer;
 }
+.nav-item {
+  height: 32px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
 .sidebar-col-item {
+  padding: 8px 12px 8px 8px;
   margin-bottom: 12px;
 }
 .sidebar-col-item.day-boundary {
