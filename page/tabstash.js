@@ -1517,28 +1517,29 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
     });
   }
 
+  if (!readOnly && collapsible && !state.pruneMode.active) {
+    header.draggable = true;
+    header.classList.add('draggable-collection');
+    header.addEventListener('dragstart', (e) => {
+      dragState.type = 'collection';
+      dragState.collectionId = col.id;
+      dragState.collectionPinned = Boolean(col.isPinned);
+      dragState.source = 'main';
+      div.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', col.id);
+    });
+    header.addEventListener('dragend', () => {
+      dragState.type = null;
+      dragState.collectionId = null;
+      dragState.collectionPinned = null;
+      dragState.source = null;
+      $$('.collection-block').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
+      $$('.sidebar-section-dropzone').forEach((el) => el.classList.remove('drag-target'));
+    });
+  }
+
   if (!readOnly && collapsible && state.currentView === 'all') {
-    if (!state.pruneMode.active) {
-      header.draggable = true;
-      header.classList.add('draggable-collection');
-      header.addEventListener('dragstart', (e) => {
-        dragState.type = 'collection';
-        dragState.collectionId = col.id;
-        dragState.collectionPinned = Boolean(col.isPinned);
-        dragState.source = 'main';
-        div.classList.add('is-dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', col.id);
-      });
-      header.addEventListener('dragend', () => {
-        dragState.type = null;
-        dragState.collectionId = null;
-        dragState.collectionPinned = null;
-        dragState.source = null;
-        $$('.collection-block').forEach((el) => el.classList.remove('is-dragging', 'drag-target'));
-        $$('.sidebar-section-dropzone').forEach((el) => el.classList.remove('drag-target'));
-      });
-    }
     header.addEventListener('dragover', (e) => {
       if (dragState.type === 'collection') {
         if (!dragState.collectionId || dragState.collectionPinned !== Boolean(col.isPinned)) return;
