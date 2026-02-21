@@ -78,6 +78,7 @@ let dragState = {
 
 const RECENT_SEARCHES_KEY = 'recentSearches';
 const PRUNE_TALLY_HOLD_MS = 300;
+let autoArchiveDaysRowEl = null;
 const PRUNE_ENTRY_SCROLL_MS = 720;
 const PRUNE_EXIT_SCROLL_MS = 500;
 const PRUNE_SCROLL_TOP_OFFSET = 40;
@@ -2545,9 +2546,27 @@ function resetImportUi() {
 
 // ── Settings ───────────────────────────────────────────
 function syncAutoArchiveDaysVisibility() {
-  const row = $('#setting-auto-archive-days-row');
-  if (!row) return;
-  row.classList.toggle('is-hidden', state.settings.autoArchiveInactiveSessions === false);
+  const card = $('#setting-auto-archive-card');
+  if (!card) return;
+
+  if (!autoArchiveDaysRowEl) {
+    autoArchiveDaysRowEl = $('#setting-auto-archive-days-row');
+  }
+  if (!autoArchiveDaysRowEl) return;
+
+  const isEnabled = state.settings.autoArchiveInactiveSessions !== false;
+  if (isEnabled) {
+    if (autoArchiveDaysRowEl.parentElement !== card) {
+      card.appendChild(autoArchiveDaysRowEl);
+    }
+    autoArchiveDaysRowEl.classList.remove('is-hidden');
+    return;
+  }
+
+  autoArchiveDaysRowEl.classList.add('is-hidden');
+  if (autoArchiveDaysRowEl.parentElement === card) {
+    card.removeChild(autoArchiveDaysRowEl);
+  }
 }
 
 function openSettings() {

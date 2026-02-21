@@ -1691,8 +1691,6 @@ body {
 
 .modal-wide {
   width: 500px;
-  height: min(600px, 80vh);
-  max-height: none;
 }
 
 .modal-compact {
@@ -1816,8 +1814,8 @@ body {
 #settings-overlay .modal-dialog {
   display: flex;
   flex-direction: column;
-  height: min(640px, 85vh);
-  max-height: none;
+  max-height: 85vh;
+  height: auto;
   overflow: visible;
 }
 
@@ -1829,6 +1827,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  padding: 16px;
 }
 
 .move-item {
@@ -1849,24 +1848,22 @@ body {
 .settings-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .setting-group {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  overflow: hidden;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
 }
 
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
   gap: 16px;
-}
-.setting-row + .setting-row {
-  border-top: 1px solid var(--border-light);
 }
 
 .setting-info {
@@ -1991,13 +1988,7 @@ body {
 }
 
 .setting-row-child {
-  padding-top: 12px;
-  padding-bottom: 0;
-  margin-bottom: 0;
-}
-
-.setting-row + .setting-row.setting-row-child {
-  border-top: none;
+  margin-top: 12px;
 }
 
 .setting-row-child.is-hidden {
@@ -2027,7 +2018,7 @@ body {
 
 .setting-inline-message {
   font-size: 12px;
-  padding: 0 14px 12px;
+  margin-top: 12px;
 }
 
 .setting-inline-message-error {
@@ -2036,8 +2027,8 @@ body {
 
 .setting-inline-confirm {
   border-top: 1px solid var(--border-light);
-  margin-top: 2px;
-  padding: 10px 14px 12px;
+  margin-top: 12px;
+  padding-top: 12px;
 }
 
 .setting-inline-confirm p {
