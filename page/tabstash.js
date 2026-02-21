@@ -1507,7 +1507,7 @@ function buildCollectionBlock(col, readOnly, collapsible, options = {}) {
     }
 
     header.addEventListener('click', async (e) => {
-      if (e.target.closest('.col-actions') || e.target.closest('.inline-menu')) return;
+      if (e.target.closest('.col-actions') || e.target.closest('.inline-menu') || e.target.closest('.inline-rename')) return;
       if (isSearchResultsView) {
         state.searchExpandedCollections[col.id] = !state.searchExpandedCollections[col.id];
         render();
