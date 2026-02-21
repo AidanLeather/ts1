@@ -25,16 +25,13 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       pinned: true,
       index: 0,
     });
+
+    await ensureStarterCollections();
   }
 
   // Rebuild URL index on install/update (ensures consistency)
   await WhyTabStorage.rebuildUrlIndex();
 
-  await ensureStarterCollections();
-});
-
-chrome.runtime.onStartup.addListener(async () => {
-  await ensureStarterCollections();
 });
 
 // ── Suggested pinned templates ─────────────────────────
@@ -50,14 +47,34 @@ async function ensureStarterCollections() {
     return;
   }
 
-  const templates = [
-    { name: 'Reading list' },
-    { name: 'Inspiration' },
-  ];
+  await WhyTabStorage.addCollection(
+    'Reading list',
+    [
+      {
+        title: 'When to Do What You Love — Paul Graham',
+        url: 'https://paulgraham.com/when.html',
+      },
+      {
+        title: 'This Is Water — David Foster Wallace',
+        url: 'https://fs.blog/david-foster-wallace-this-is-water/',
+      },
+      {
+        title: 'Berkshire Hathaway 2022 Annual Report — Warren Buffett',
+        url: 'https://www.berkshirehathaway.com/2022ar/linksannual22.html',
+      },
+    ],
+    { isPinned: true, isUserNamed: true },
+  );
 
-  for (const tmpl of templates) {
-    await WhyTabStorage.addCollection(tmpl.name, [], { isPinned: true, isUserNamed: true });
-  }
+  await WhyTabStorage.addCollection(
+    'Inspiration',
+    [
+      { title: 'Wonder', url: 'https://www.wondercard.co' },
+      { title: "People's Graphic Design Archive", url: 'https://peoplesgdarchive.org/' },
+      { title: 'Deck Gallery', url: 'https://www.deck.gallery/' },
+    ],
+    { isPinned: true, isUserNamed: true },
+  );
 
   await chrome.storage.local.set({ hasCompletedOnboarding: true });
   console.log('[WhyTab SW] Created starter pinned collections.');
