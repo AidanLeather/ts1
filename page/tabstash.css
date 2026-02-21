@@ -1796,8 +1796,6 @@ body {
 
 .modal-body {
   padding: 0 20px 20px;
-  flex: 1;
-  min-height: 0;
   overflow-y: auto;
 }
 
@@ -1820,19 +1818,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-#settings-overlay .modal-dialog {
-  height: min(600px, 80vh);
-  max-height: none;
-}
-
-#settings-overlay .modal-header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border-light);
 }
 
 .setting-group {
