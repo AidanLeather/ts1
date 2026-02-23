@@ -2166,26 +2166,33 @@ function openInlineInputModal({ title, placeholder, confirmLabel, initialValue =
   });
 }
 
+function hideInlineInputModal() {
+  const modal = $('#inline-input-modal');
+  const activeEl = document.activeElement;
+  if (activeEl && modal.contains(activeEl) && typeof activeEl.blur === 'function') {
+    activeEl.blur();
+  }
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
 function submitInlineInputModal() {
   if (!inlineInputModalSession) return;
   const value = $('#inline-input-modal-input').value;
   const { resolve } = inlineInputModalSession;
   inlineInputModalSession = null;
-  $('#inline-input-modal').classList.add('hidden');
-  $('#inline-input-modal').setAttribute('aria-hidden', 'true');
+  hideInlineInputModal();
   resolve(value);
 }
 
 function closeInlineInputModal() {
   if (!inlineInputModalSession) {
-    $('#inline-input-modal').classList.add('hidden');
-    $('#inline-input-modal').setAttribute('aria-hidden', 'true');
+    hideInlineInputModal();
     return;
   }
   const { resolve } = inlineInputModalSession;
   inlineInputModalSession = null;
-  $('#inline-input-modal').classList.add('hidden');
-  $('#inline-input-modal').setAttribute('aria-hidden', 'true');
+  hideInlineInputModal();
   resolve(null);
 }
 
