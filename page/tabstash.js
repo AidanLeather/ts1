@@ -2576,7 +2576,7 @@ function validateImportPayload(payload) {
   if (!Array.isArray(payload.collections)) return null;
 
   const normalized = {
-    collections: payload.collections,
+    collections: normalizeImportedCollections(payload.collections),
     settings: payload.settings && typeof payload.settings === 'object' ? payload.settings : {},
     actionLog: Array.isArray(payload.actionLog) ? payload.actionLog : [],
   };
@@ -2595,6 +2595,69 @@ function validateImportPayload(payload) {
   }
 
   return normalized;
+}
+
+function normalizeImportedCollections(collections) {
+  return collections.map((collection) => {
+    const createdAt = Number(collection?.createdAt) || Date.now();
+    const tabs = Array.isArray(collection?.tabs)
+      ? collection.tabs
+        .filter((tab) => tab && typeof tab.url === 'string' && tab.url.trim())
+        .map((tab) => ({
+          ...tab,
+          id: tab.id || crypto.randomUUID(),
+          title: tab.title || tab.url,
+          favIconUrl: tab.favIconUrl || '',
+          customFavicon: tab.customFavicon || '',
+          savedAt: Number(tab.savedAt) || createdAt,
+          archived: Boolean(tab.archived),
+          tags: Array.isArray(tab.tags) ? tab.tags : [],
+        }))
+      : [];
+
+    return {
+      ...collection,
+      id: collection?.id || crypto.randomUUID(),
+      name: collection?.name || 'Imported collection',
+      createdAt,
+      isPinned: Boolean(collection?.isPinned),
+      notes: typeof collection?.notes === 'string' ? collection.notes : '',
+      archived: Boolean(collection?.archived),
+      keptAt: Number.isFinite(collection?.keptAt) ? collection.keptAt : null,
+      tabs,
+    };
+  });
+}
+
+function buildUrlIndexFromCollections(collections) {
+  const idx = {};
+  for (const col of collections) {
+    for (const tab of (col.tabs || [])) {
+      if (!tab?.url) continue;
+      idx[tab.url] = (idx[tab.url] || 0) + 1;
+    }
+  }
+  return idx;
+}
+
+function mergeImportData(existingData, importedData) {
+  const mergedCollections = [
+    ...importedData.collections,
+    ...existingData.collections,
+  ];
+
+  return {
+    collections: mergedCollections,
+    urlIndex: buildUrlIndexFromCollections(mergedCollections),
+    settings: {
+      ...existingData.settings,
+      ...importedData.settings,
+    },
+    actionLog: [
+      ...(existingData.actionLog || []),
+      ...(importedData.actionLog || []),
+    ],
+  };
 }
 
 function resetImportUi() {
@@ -2751,7 +2814,7 @@ function openSettings() {
     $('#setting-import-confirm')?.classList.add('hidden');
 
     try {
-      const text = await file.text();
+      const text = (await file.text()).replace(/^\uFEFF/, '');
       const parsed = JSON.parse(text);
       const valid = validateImportPayload(parsed);
       if (!valid) throw new Error('invalid');
@@ -2767,13 +2830,40 @@ function openSettings() {
     resetImportUi();
   }, 'click');
 
-  replaceWithClone('#setting-import-confirm-btn', async () => {
+  replaceWithClone('#setting-import-merge-btn', async () => {
     if (!pendingImportData) return;
     try {
+      const shouldMerge = window.confirm('Merge imported data with your current data?');
+      if (!shouldMerge) return;
+      const existingData = await WhyTabStorage.getAll();
+      const mergedData = mergeImportData(existingData, pendingImportData);
+      await chrome.storage.local.set({
+        collections: mergedData.collections,
+        urlIndex: mergedData.urlIndex,
+        settings: mergedData.settings,
+        actionLog: mergedData.actionLog,
+      });
+      await loadData();
+      clearActiveNudge();
+      resetImportUi();
+      closeSettings();
+      render();
+      showToast('Data merged successfully.');
+    } catch (err) {
+      console.error('[WhyTab] import error:', err);
+      $('#setting-import-error')?.classList.remove('hidden');
+    }
+  }, 'click');
+
+  replaceWithClone('#setting-import-replace-btn', async () => {
+    if (!pendingImportData) return;
+    try {
+      const shouldReplace = window.confirm('Replace all current data with imported data? This cannot be undone.');
+      if (!shouldReplace) return;
       await chrome.storage.local.clear();
       await chrome.storage.local.set({
         collections: pendingImportData.collections,
-        urlIndex: pendingImportData.urlIndex,
+        urlIndex: pendingImportData.urlIndex || buildUrlIndexFromCollections(pendingImportData.collections),
         settings: pendingImportData.settings,
         actionLog: pendingImportData.actionLog,
       });
@@ -2782,7 +2872,7 @@ function openSettings() {
       resetImportUi();
       closeSettings();
       render();
-      showToast('Data imported successfully.');
+      showToast('Data replaced successfully.');
     } catch (err) {
       console.error('[WhyTab] import error:', err);
       $('#setting-import-error')?.classList.remove('hidden');
