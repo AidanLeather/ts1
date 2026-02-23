@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "WhyTab",
-  "version": "1.3.0",
-  "description": "Save, organize, and search your tabs. A smarter alternative to OneTab.",
+  "version": "1.7.25",
+  "description": "Save your open tabs as organised collections. Close your browser without losing your thinking. Free, local, no account needed.",
   "permissions": [
     "tabs",
     "storage",
