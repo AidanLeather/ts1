@@ -16,6 +16,10 @@
 importScripts('../lib/time.js', '../lib/storage.js');
 
 const WONDER_CUSTOM_FAVICON = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PGNpcmNsZSBjeD0iOCIgY3k9IjgiIHI9IjgiIGZpbGw9IiM0QjNGOEMiLz48L3N2Zz4=';
+const DAILY_BACKUP_ALARM_NAME = 'dailyAutomaticBackup';
+const DAILY_BACKUP_FILENAME = 'whytab-backup.json';
+const DAILY_BACKUP_DATE_KEY = 'lastBackupDate';
+const DAILY_BACKUP_ALARM_PERIOD_MINUTES = 60;
 
 // ── Install / update ───────────────────────────────────
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -33,8 +37,79 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // Rebuild URL index on install/update (ensures consistency)
   await WhyTabStorage.rebuildUrlIndex();
+  await syncDailyBackupAlarm();
+  await maybeRunDailyAutomaticBackup();
 
 });
+
+chrome.runtime.onStartup.addListener(async () => {
+  await syncDailyBackupAlarm();
+  await maybeRunDailyAutomaticBackup();
+});
+
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+  if (areaName !== 'local' || !changes.settings) return;
+  await syncDailyBackupAlarm();
+  await maybeRunDailyAutomaticBackup();
+});
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== DAILY_BACKUP_ALARM_NAME) return;
+  await maybeRunDailyAutomaticBackup();
+});
+
+async function syncDailyBackupAlarm() {
+  const settings = await WhyTabStorage.getSettings();
+  if (!settings.dailyAutomaticBackup) {
+    await chrome.alarms.clear(DAILY_BACKUP_ALARM_NAME);
+    return;
+  }
+
+  const existingAlarm = await chrome.alarms.get(DAILY_BACKUP_ALARM_NAME);
+  if (existingAlarm) return;
+
+  await chrome.alarms.create(DAILY_BACKUP_ALARM_NAME, {
+    delayInMinutes: 1,
+    periodInMinutes: DAILY_BACKUP_ALARM_PERIOD_MINUTES,
+  });
+}
+
+function getLocalDateStamp(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+async function createExportDataUrl() {
+  const data = await WhyTabStorage.getAll();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  return URL.createObjectURL(blob);
+}
+
+async function maybeRunDailyAutomaticBackup() {
+  const settings = await WhyTabStorage.getSettings();
+  if (!settings.dailyAutomaticBackup) return;
+
+  const todayStamp = getLocalDateStamp();
+  const stored = await chrome.storage.local.get(DAILY_BACKUP_DATE_KEY);
+  if (stored?.[DAILY_BACKUP_DATE_KEY] === todayStamp) return;
+
+  const dataUrl = await createExportDataUrl();
+  try {
+    await chrome.downloads.download({
+      url: dataUrl,
+      filename: DAILY_BACKUP_FILENAME,
+      conflictAction: 'overwrite',
+      saveAs: false,
+    });
+    await chrome.storage.local.set({ [DAILY_BACKUP_DATE_KEY]: todayStamp });
+  } catch (err) {
+    console.error('[WhyTab SW] daily backup error:', err);
+  } finally {
+    URL.revokeObjectURL(dataUrl);
+  }
+}
 
 // ── Suggested pinned templates ─────────────────────────
 
