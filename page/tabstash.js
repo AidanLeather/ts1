@@ -638,18 +638,30 @@ function isHelpPanelOpen() {
   return $('#help-overlay')?.classList.contains('open');
 }
 
+let helpPanelReturnFocusEl = null;
+
 function openHelpPanel() {
   const overlay = $('#help-overlay');
   if (!overlay) return;
+  const activeEl = document.activeElement;
+  helpPanelReturnFocusEl = activeEl instanceof HTMLElement && !overlay.contains(activeEl)
+    ? activeEl
+    : $('#help-fab');
   overlay.classList.add('open');
   overlay.setAttribute('aria-hidden', 'false');
+  $('#help-close-btn')?.focus();
 }
 
 function closeHelpPanel() {
   const overlay = $('#help-overlay');
   if (!overlay) return;
+  const activeEl = document.activeElement;
+  if (activeEl instanceof HTMLElement && overlay.contains(activeEl)) {
+    (helpPanelReturnFocusEl || $('#help-fab'))?.focus();
+  }
   overlay.classList.remove('open');
   overlay.setAttribute('aria-hidden', 'true');
+  helpPanelReturnFocusEl = null;
 }
 
 function getSavedCollections() {
