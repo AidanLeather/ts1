@@ -33,10 +33,12 @@
 
     <section class="section">
       <h2>Data</h2>
-      <p class="desc">Export or clear your saved tabs.</p>
+      <p class="desc">Import, export, or clear your saved tabs.</p>
       <div class="button-row">
+        <button id="import-btn" class="btn btn-secondary">Import JSON</button>
         <button id="export-btn" class="btn btn-secondary">Export as JSON</button>
         <button id="clear-btn" class="btn btn-danger">Clear all data</button>
+        <input id="import-file" type="file" accept=".json" class="hidden" aria-hidden="true">
       </div>
     </section>
 
@@ -51,6 +53,19 @@
       <div class="modal-actions">
         <button id="confirm-clear-btn" class="btn btn-danger">Delete</button>
         <button id="cancel-clear-btn" class="btn btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="import-mode-modal" class="modal hidden" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <div class="modal-dialog">
+      <h3>Import data</h3>
+      <p>Choose whether to merge imported data with your existing data or replace everything.</p>
+      <div class="modal-actions">
+        <button id="import-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button id="import-merge-btn" class="btn btn-secondary">Merge</button>
+        <button id="import-replace-btn" class="btn btn-danger">Replace</button>
       </div>
     </div>
   </div>

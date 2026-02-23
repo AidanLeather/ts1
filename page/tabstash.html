@@ -369,10 +369,11 @@
           </div>
           <div id="setting-import-error" class="setting-inline-message setting-inline-message-error hidden">Invalid file format. Please select a WhyTab export file.</div>
           <div id="setting-import-confirm" class="setting-inline-confirm hidden">
-            <p>This will replace all your current data with the imported data. This cannot be undone.</p>
+            <p>How should we import this file?</p>
             <div class="setting-inline-confirm-actions">
               <button id="setting-import-cancel-btn" class="setting-action-btn" type="button">Cancel</button>
-              <button id="setting-import-confirm-btn" class="setting-action-btn setting-action-btn-confirm" type="button">Import</button>
+              <button id="setting-import-merge-btn" class="setting-action-btn" type="button">Merge</button>
+              <button id="setting-import-replace-btn" class="setting-action-btn setting-action-btn-confirm" type="button">Replace</button>
             </div>
           </div>
           <input id="setting-import-file" type="file" accept=".json" class="hidden" aria-hidden="true">
