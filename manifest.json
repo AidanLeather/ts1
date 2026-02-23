@@ -7,7 +7,8 @@
     "tabs",
     "storage",
     "favicon",
-    "downloads"
+    "downloads",
+    "alarms"
   ],
   "action": {
     "default_popup": "popup/popup.html",
