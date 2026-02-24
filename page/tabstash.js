@@ -293,7 +293,6 @@ function clearActiveNudge() {
 
 async function dismissCurrentNudge() {
   const dismissedType = state.nudges.active;
-  clearActiveNudge();
 
   if (dismissedType === 'prune') {
     state.nudges.flags.pruneNudgeState = PRUNE_NUDGE_STATES.DISMISSED;
@@ -304,6 +303,7 @@ async function dismissCurrentNudge() {
     }
   }
 
+  clearActiveNudge();
   render();
 }
 
@@ -454,7 +454,7 @@ function bindEvents() {
   $('#pin-tip-dismiss')?.addEventListener('click', dismissPinTip);
   $('#contextual-nudge-dismiss')?.addEventListener('click', dismissCurrentNudge);
   $('#contextual-nudge-try')?.addEventListener('click', async () => {
-    dismissCurrentNudge();
+    await dismissCurrentNudge();
     await togglePruneMode();
   });
 
