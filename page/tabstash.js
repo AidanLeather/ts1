@@ -33,8 +33,7 @@ let state = {
   nudges: {
     flags: {
       hasSeenFirstSaveNudge: false,
-      hasSeenPruneNudge: false,
-      hasDismissedPruneNudge: false,
+      pruneNudgeState: 'never_shown',
       hasSeenNamedNudge: false,
       hasSeenShortcutNudge: false,
     },
@@ -85,10 +84,14 @@ const PRUNE_ENTRY_SCROLL_MS = 720;
 const PRUNE_EXIT_SCROLL_MS = 500;
 const PRUNE_SCROLL_TOP_OFFSET = 40;
 const PIN_TIP_DISMISSED_KEY = 'hasSeenPinTip';
-const PRUNE_NUDGE_DISMISSED_KEY = 'hasDismissedPruneNudge';
+const PRUNE_NUDGE_STATE_KEY = 'pruneNudgeState';
+const PRUNE_NUDGE_STATES = {
+  NEVER_SHOWN: 'never_shown',
+  SHOWN: 'shown',
+  DISMISSED: 'dismissed',
+};
 const NUDGE_STORAGE_KEYS = {
   firstSave: 'hasSeenFirstSaveNudge',
-  prune: 'hasSeenPruneNudge',
   named: 'hasSeenNamedNudge',
   shortcut: 'hasSeenShortcutNudge',
   onboarding: 'hasCompletedOnboarding',
@@ -258,16 +261,16 @@ async function loadNudgeState() {
   try {
     const stored = await chrome.storage.local.get([
       NUDGE_STORAGE_KEYS.firstSave,
-      NUDGE_STORAGE_KEYS.prune,
-      PRUNE_NUDGE_DISMISSED_KEY,
+      PRUNE_NUDGE_STATE_KEY,
       NUDGE_STORAGE_KEYS.named,
       NUDGE_STORAGE_KEYS.shortcut,
       NUDGE_STORAGE_KEYS.openCount,
     ]);
 
     state.nudges.flags.hasSeenFirstSaveNudge = Boolean(stored[NUDGE_STORAGE_KEYS.firstSave]);
-    state.nudges.flags.hasSeenPruneNudge = Boolean(stored[NUDGE_STORAGE_KEYS.prune]);
-    state.nudges.flags.hasDismissedPruneNudge = Boolean(stored[PRUNE_NUDGE_DISMISSED_KEY]);
+    state.nudges.flags.pruneNudgeState = Object.values(PRUNE_NUDGE_STATES).includes(stored[PRUNE_NUDGE_STATE_KEY])
+      ? stored[PRUNE_NUDGE_STATE_KEY]
+      : PRUNE_NUDGE_STATES.NEVER_SHOWN;
     state.nudges.flags.hasSeenNamedNudge = Boolean(stored[NUDGE_STORAGE_KEYS.named]);
     state.nudges.flags.hasSeenShortcutNudge = Boolean(stored[NUDGE_STORAGE_KEYS.shortcut]);
 
@@ -293,13 +296,9 @@ async function dismissCurrentNudge() {
   clearActiveNudge();
 
   if (dismissedType === 'prune') {
-    state.nudges.flags.hasSeenPruneNudge = true;
-    state.nudges.flags.hasDismissedPruneNudge = true;
+    state.nudges.flags.pruneNudgeState = PRUNE_NUDGE_STATES.DISMISSED;
     try {
-      await chrome.storage.local.set({
-        [NUDGE_STORAGE_KEYS.prune]: true,
-        [PRUNE_NUDGE_DISMISSED_KEY]: true,
-      });
+      await chrome.storage.local.set({ [PRUNE_NUDGE_STATE_KEY]: PRUNE_NUDGE_STATES.DISMISSED });
     } catch (err) {
       console.error('[WhyTab] save prune nudge dismissal error:', err);
     }
@@ -311,10 +310,14 @@ async function dismissCurrentNudge() {
 async function markNudgeSeen(type) {
   const keyByType = {
     firstSave: NUDGE_STORAGE_KEYS.firstSave,
-    prune: NUDGE_STORAGE_KEYS.prune,
     named: NUDGE_STORAGE_KEYS.named,
     shortcut: NUDGE_STORAGE_KEYS.shortcut,
   };
+  if (type === 'prune') {
+    state.nudges.flags.pruneNudgeState = PRUNE_NUDGE_STATES.SHOWN;
+    await chrome.storage.local.set({ [PRUNE_NUDGE_STATE_KEY]: PRUNE_NUDGE_STATES.SHOWN });
+    return;
+  }
   const key = keyByType[type];
   if (!key) return;
   state.nudges.flags[`hasSeen${type[0].toUpperCase()}${type.slice(1)}Nudge`] = true;
@@ -344,7 +347,7 @@ async function maybeShowContextualNudge() {
   }
 
   const unsortedCount = countUnsortedSessions();
-  if (!state.nudges.flags.hasSeenPruneNudge && !state.nudges.flags.hasDismissedPruneNudge && unsortedCount >= 5) {
+  if (state.nudges.flags.pruneNudgeState === PRUNE_NUDGE_STATES.NEVER_SHOWN && unsortedCount >= 5) {
     state.nudges.active = 'prune';
     state.nudges.activeMeta = { count: unsortedCount };
     await markNudgeSeen('prune');
