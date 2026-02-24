@@ -93,7 +93,6 @@ const NUDGE_STORAGE_KEYS = {
 };
 const SEARCH_LOG_DEBOUNCE_MS = 500;
 const DAILY_BACKUP_DATE_KEY = 'lastBackupDate';
-const DAILY_BACKUP_FILENAME = 'whytab-backup.json';
 const sessionSearchQueries = new Set();
 let searchLogTimer = null;
 let inlineEditSession = null;
@@ -171,10 +170,12 @@ async function maybeRunDailyAutomaticBackup(settings = state.settings) {
     if (stored?.[DAILY_BACKUP_DATE_KEY] === todayStamp) return;
 
     const dataUrl = await createExportDataUrl();
+    const backupInstanceId = await WhyTabStorage.getOrCreateBackupInstanceId();
+    const dailyBackupFilename = `whytab-backup-${backupInstanceId}.json`;
     try {
       await chrome.downloads.download({
         url: dataUrl,
-        filename: DAILY_BACKUP_FILENAME,
+        filename: dailyBackupFilename,
         conflictAction: 'overwrite',
         saveAs: false,
       });
