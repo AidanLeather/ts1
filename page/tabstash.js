@@ -2886,7 +2886,10 @@ function openSettings() {
       dataUrl = await createExportDataUrl();
       const a = document.createElement('a');
       a.href = dataUrl;
-      a.download = `tabstash-${new Date().toISOString().slice(0, 10)}.json`;
+      const now = new Date();
+      const date = `${String(now.getDate()).padStart(2, '0')}${String(now.getMonth() + 1).padStart(2, '0')}${now.getFullYear()}`;
+      const time = `${String(now.getMinutes()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}`;
+      a.download = `whytab-export_${date}-${time}.json`;
       a.click();
       showToast('Exported');
     } catch (err) {
