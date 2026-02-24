@@ -44,6 +44,7 @@ let state = {
     activeTimer: null,
     pendingFirstSaveCollectionId: null,
     pendingNamedNudge: false,
+    checkScheduled: false,
   },
   pruneMode: {
     active: false,
@@ -198,8 +199,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadRecentSearches();
   await loadPinTipPreference();
   await loadNudgeState();
+  scheduleNudgeCheck('initial-nudge-state-loaded');
   render();
-  await maybeShowContextualNudge();
   bindEvents();
   bindKeyboard();
   bindStorageListener();
@@ -219,7 +220,6 @@ async function loadData() {
     state.collections = getCollectionsForCurrentMode(data.collections, state.settings.collectionSort);
     state.urlIndex = data.urlIndex;
     console.log(`[WhyTab] Loaded ${state.collections.length} collections`);
-    await maybeShowContextualNudge();
   } catch (err) {
     console.error('[WhyTab] loadData error:', err);
   }
@@ -363,6 +363,19 @@ async function maybeShowContextualNudge() {
     await markNudgeSeen('shortcut');
     showToast('Tip: Press ⌘K to open the command palette for quick actions.');
   }
+}
+
+function scheduleNudgeCheck(reason = 'unspecified') {
+  if (state.nudges.checkScheduled) return;
+  state.nudges.checkScheduled = true;
+  queueMicrotask(async () => {
+    state.nudges.checkScheduled = false;
+    try {
+      await maybeShowContextualNudge();
+    } catch (err) {
+      console.error('[WhyTab] nudge check error:', reason, err);
+    }
+  });
 }
 
 function renderContextualBannerNudge() {
@@ -1124,6 +1137,7 @@ async function saveTabsToCollection(saveable, createdAt) {
 
 async function saveAllTabs() {
   try {
+    const unsortedBeforeSave = countUnsortedSessions();
     const tabs = await chrome.tabs.query({ currentWindow: true });
     const saveable = getSaveableTabs(tabs);
     if (saveable.length === 0) {
@@ -1135,6 +1149,9 @@ async function saveAllTabs() {
     const result = await saveTabsToCollection(saveable, createdAt);
     console.log(`[WhyTab] Saved ${saveable.length} tabs as "${result.name}"`);
     await loadData();
+    if (countUnsortedSessions() !== unsortedBeforeSave) {
+      scheduleNudgeCheck('save-all-tabs');
+    }
     render();
     showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
   } catch (err) {
@@ -1145,6 +1162,7 @@ async function saveAllTabs() {
 
 async function saveAndCloseTabs() {
   try {
+    const unsortedBeforeSave = countUnsortedSessions();
     const tabs = await chrome.tabs.query({ currentWindow: true });
     const saveable = getSaveableTabs(tabs);
     if (saveable.length === 0) {
@@ -1158,9 +1176,12 @@ async function saveAndCloseTabs() {
     const pageUrl = chrome.runtime.getURL('page/tabstash.html');
     await closeTabs(tabs, pageUrl);
     await loadData();
+    if (countUnsortedSessions() !== unsortedBeforeSave) {
+      scheduleNudgeCheck('save-and-close-tabs');
+    }
     if (result.createdNew && !state.nudges.flags.hasSeenFirstSaveNudge) {
       state.nudges.pendingFirstSaveCollectionId = result.collectionId;
-      await maybeShowContextualNudge();
+      scheduleNudgeCheck('first-save-created');
     }
     render();
     showToast(`Saved ${saveable.length} tab${saveable.length !== 1 ? 's' : ''}`);
@@ -2533,12 +2554,16 @@ function startInlineRename(blockEl, col) {
     const v = input.value.trim();
     if (v && v !== current) {
       try {
+        const unsortedBeforeRename = countUnsortedSessions();
         const becameNamed = !col.isUserNamed;
         await WhyTabStorage.renameCollection(col.id, v);
         await loadData();
+        if (countUnsortedSessions() !== unsortedBeforeRename) {
+          scheduleNudgeCheck('rename-changed-unsorted-count');
+        }
         if (becameNamed && !state.nudges.flags.hasSeenNamedNudge) {
           state.nudges.pendingNamedNudge = true;
-          await maybeShowContextualNudge();
+          scheduleNudgeCheck('collection-renamed');
         }
       } catch (err) {
         console.error('[WhyTab] rename error:', err);
@@ -2976,11 +3001,14 @@ async function toggleItemUrls() {
 }
 
 async function togglePruneMode() {
+  const wasPruneModeActive = state.pruneMode.active;
   if (state.pruneMode.active) exitPruneMode();
   else enterPruneMode();
   await loadData();
   render();
-  await maybeShowContextualNudge();
+  if (wasPruneModeActive) {
+    scheduleNudgeCheck('prune-mode-exit');
+  }
 }
 
 async function goToCollectionFromCommand(collectionId) {
