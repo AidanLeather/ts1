@@ -17,7 +17,6 @@ importScripts('../lib/time.js', '../lib/storage.js');
 
 const WONDER_CUSTOM_FAVICON = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiI+PGNpcmNsZSBjeD0iOCIgY3k9IjgiIHI9IjgiIGZpbGw9IiM0QjNGOEMiLz48L3N2Zz4=';
 const DAILY_BACKUP_ALARM_NAME = 'dailyAutomaticBackup';
-const DAILY_BACKUP_FILENAME = 'whytab-backup.json';
 const DAILY_BACKUP_DATE_KEY = 'lastBackupDate';
 const DAILY_BACKUP_ALARM_PERIOD_MINUTES = 60;
 
@@ -96,10 +95,12 @@ async function maybeRunDailyAutomaticBackup() {
   if (stored?.[DAILY_BACKUP_DATE_KEY] === todayStamp) return;
 
   const dataUrl = await createExportDataUrl();
+  const backupInstanceId = await WhyTabStorage.getOrCreateBackupInstanceId();
+  const dailyBackupFilename = `whytab-backup-${backupInstanceId}.json`;
   try {
     await chrome.downloads.download({
       url: dataUrl,
-      filename: DAILY_BACKUP_FILENAME,
+      filename: dailyBackupFilename,
       conflictAction: 'overwrite',
       saveAs: false,
     });
